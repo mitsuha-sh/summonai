@@ -1,0 +1,4 @@
+.data/
+*.log
+.mcp.json
+.claude/settings.local.json

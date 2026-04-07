@@ -1,0 +1,6 @@
+[submodule "memory-mcp"]
+	path = memory-mcp
+	url = https://github.com/mitsuha-sh/summonai-memory-mcp.git
+[submodule "task-mcp"]
+	path = task-mcp
+	url = https://github.com/mitsuha-sh/summonai-task-mcp.git

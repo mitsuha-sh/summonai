@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "project_dir": ".",
+  "command": [
+    "uv",
+    "run",
+    "--directory",
+    "./task-mcp",
+    "python",
+    "./scripts/demo_task_agent.py",
+    "{task_id}"
+  ]
+}

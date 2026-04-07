@@ -1,0 +1,5 @@
+{
+  "enabled": true,
+  "project_dir": ".",
+  "runner": "claude"
+}
