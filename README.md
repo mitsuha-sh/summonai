@@ -56,6 +56,11 @@ Edit `memory-mcp/persona/USER.md` and `memory-mcp/persona/SOUL.md` to define you
 
 Default runner is `config/task_runner.claude.json` (Claude Code). To change, update `SUMMONAI_TASK_RUNNER_CONFIG` in `.mcp.json`.
 
+## Zellij Pane-Based Sub Agents
+
+`summonai-task-mcp` can run sub agents through a zellij pane-based runner so each task executes in its own pane/session context.
+This repository keeps the setup entrypoint and delegates operational details (runner modes, pane lifecycle, and configuration options) to the `summonai-task-mcp` README.
+
 ## Notes
 
 - `.mcp.json` contains absolute paths and is git-ignored. Regenerate with `make setup`.
