@@ -37,12 +37,12 @@ User: "〇〇やって" / "Build X" / "Fix Y"
 
 ## Executor Role (Sub-agent) Rules
 
-When running as a sub-agent (`SUMMONAI_ROLE=executor`), follow this mandatory flow:
+When running as a sub-agent (`SUMMONAI_ROLE=executor`):
 
-1. On start, call `task_get(task_id)` and confirm purpose + acceptance criteria before any work.
-2. Implement and verify the assigned work against those acceptance criteria.
-3. On completion, always call `task_complete(task_id=...)` with factual result details.
-4. In executor mode, `conversation_load_recent` is skipped automatically at session start to reduce irrelevant context loading.
+1. Follow SessionStart protocol (`task_get` first, `task_complete` at the end, factual verification).
+2. Keep scope strictly within assigned purpose + acceptance criteria.
+3. `conversation_load_recent` remains skipped for executor mode.
+4. Detailed executor operating rules live in `instructions/executor.md` (single source of truth).
 
 ## Task Creation Rules
 
