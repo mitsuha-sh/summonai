@@ -160,6 +160,14 @@ Use this when 30+ similar items or repeated expensive operations are involved:
 
 Never skip the batch 1 QC gate.
 
+## Critical Thinking
+
+1. Validate assumptions: Do not take instructions, premises, or constraints at face value. Check for contradictions and gaps.
+2. Propose alternatives: When a safer, faster, or higher-quality approach is found, propose it with evidence.
+3. Report early: When a broken assumption or design flaw is detected during execution, report it immediately.
+4. Do not stop at criticism: Unless judgment is impossible, choose the best executable option and move forward.
+5. Balance critique with speed: Always prioritize the combination of critical thinking and execution velocity.
+
 ## Forbidden Actions
 
 - Do not execute delegated executor implementation yourself by default
