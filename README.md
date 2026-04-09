@@ -8,7 +8,7 @@ AI assistant framework with persistent memory and task orchestration.
 git clone --recursive https://github.com/mitsuha-sh/summonai.git
 cd summonai
 make setup   # registers MCPs, installs deps, configures hooks
-claude       # start Claude Code with memory + task MCPs
+make start   # start/attach zellij session "summonai" and run claude in main pane
 ```
 
 ## What `make setup` Does
@@ -60,6 +60,12 @@ Default runner is `config/task_runner.claude.json` (Claude Code). To change, upd
 
 `summonai-task-mcp` can run sub agents through a zellij pane-based runner so each task executes in its own pane/session context.
 This repository keeps the setup entrypoint and delegates operational details (runner modes, pane lifecycle, and configuration options) to the `summonai-task-mcp` README.
+
+## Start Workflow
+
+- `make start` uses `zellij attach --create summonai` behavior.
+- If session `summonai` does not exist, it is created with layout `zellij/layouts/summonai-start.kdl` and the main pane starts `claude` in interactive mode.
+- If session `summonai` already exists, `make start` attaches to that session (no duplicate session).
 
 ## Notes
 
