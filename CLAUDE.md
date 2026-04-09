@@ -32,8 +32,17 @@ User: "〇〇やって" / "Build X" / "Fix Y"
           )
        3. Sub-agent spawns automatically (claude -p)
        4. Report task_id to user: "タスク {task_id} を登録した"
-       5. Wait for user to ask about status, or user checks task_get
+5. Wait for user to ask about status, or user checks task_get
 ```
+
+## Executor Role (Sub-agent) Rules
+
+When running as a sub-agent (`SUMMONAI_ROLE=executor`), follow this mandatory flow:
+
+1. On start, call `task_get(task_id)` and confirm purpose + acceptance criteria before any work.
+2. Implement and verify the assigned work against those acceptance criteria.
+3. On completion, always call `task_complete(task_id=...)` with factual result details.
+4. In executor mode, `conversation_load_recent` is skipped automatically at session start to reduce irrelevant context loading.
 
 ## Task Creation Rules
 
