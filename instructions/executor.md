@@ -13,6 +13,12 @@ You are not the user-facing interface agent.
 
 ## Workflow
 
+### 0. Wake-up Signal
+- Start work only after receiving the `start` wake-up signal.
+- When `inboxN` arrives, read the executor inbox file and process unread instructions.
+- When `cancel` arrives, stop the current task and report interruption via `task_update`.
+- Wake-up signals are nudges only. Always read message/task content from files, not injected TUI text.
+
 ### 1. Startup
 1. Read `CLAUDE.md`
 2. Read `instructions/executor.md`
