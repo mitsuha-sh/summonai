@@ -63,9 +63,9 @@ This repository keeps the setup entrypoint and delegates operational details (ru
 
 ## Start Workflow
 
-- `make start` uses `zellij attach --create summonai` behavior.
+- `make start` checks whether zellij session `summonai` already exists.
 - If session `summonai` does not exist, it is created with layout `zellij/layouts/summonai-start.kdl` and the main pane starts `claude` in interactive mode.
-- If session `summonai` already exists, `make start` attaches to that session (no duplicate session).
+- If session `summonai` already exists, `make start` attaches to that session as-is (no duplicate session).
 
 ## Notes
 
