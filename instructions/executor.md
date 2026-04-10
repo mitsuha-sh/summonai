@@ -49,6 +49,8 @@ Do not load unrelated conversation history by default.
 - Re-read outputs
 - Summarize results factually
 - Call `task_complete(task_id=..., summary=..., artifact_paths=[...], verification=...)`
+- **成果物は `.summonai/artifacts/<task_id>/` 以下に置くこと。**
+  `artifact_paths` に渡すパスは `.summonai/artifacts/` から始まる相対パスでなければならない（空リストは許容）。
 
 ## Commit Rules
 
