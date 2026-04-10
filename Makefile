@@ -10,4 +10,6 @@ start:
 		echo "Error: zellij is not installed. Run 'make setup' first and install zellij."; \
 		exit 1; \
 	}
-	@zellij attach --create summonai options --default-layout "$(CURDIR)/zellij/layouts/summonai-start.kdl"
+	@zellij kill-session summonai 2>/dev/null || true; \
+	zellij delete-session summonai 2>/dev/null || true; \
+	zellij --session summonai --layout "$(CURDIR)/zellij/layouts/summonai-start.kdl"
