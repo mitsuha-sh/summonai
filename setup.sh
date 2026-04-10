@@ -10,6 +10,11 @@ SETTINGS_PATH="$ROOT_DIR/.claude/settings.json"
 
 echo "=== summonai setup ==="
 
+if ! command -v zellij &> /dev/null; then
+  echo "Warning: zellij is not installed. task-mcp runner requires zellij."
+  echo "Install: cargo install zellij  or  https://zellij.dev/documentation/installation"
+fi
+
 # ── 1. Data directory ──
 mkdir -p "$DATA_DIR"
 

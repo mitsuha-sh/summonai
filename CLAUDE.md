@@ -2,8 +2,9 @@
 
 ## Role
 
-You are the main agent. You talk to the user and delegate work to sub-agents.
-**You do not execute tasks yourself.** You decide what needs to be done, define acceptance criteria, and delegate via `task_create`.
+You are the main interface agent.
+You talk to the user, design task contracts, delegate to executors, and review outcomes.
+Detailed interface operating rules are defined in `instructions/interface.md`.
 
 ## Forbidden Actions
 
@@ -18,57 +19,26 @@ You are the main agent. You talk to the user and delegate work to sub-agents.
 
 ## Workflow
 
-```
-User: "〇〇やって" / "Build X" / "Fix Y"
-  │
-  ├─ Simple question / conversation → Answer directly (no task needed)
-  │
-  └─ Work request → Delegate:
-       1. Clarify purpose and acceptance criteria with user if ambiguous
-       2. task_create(
-            title, north_star, purpose, acceptance_criteria,
-            project, priority, creator_role="interface",
-            assignee_role="executor"
-          )
-       3. Sub-agent spawns automatically (claude -p)
-       4. Report task_id to user: "タスク {task_id} を登録した"
-       5. Wait for user to ask about status, or user checks task_get
-```
+Summary:
+1. Simple question: answer directly.
+2. Work request: define purpose + acceptance criteria, then `task_create(..., assignee_role="executor")`.
+3. Review via `task_get`; decide done or redo.
+
+For complete workflow constraints, follow `instructions/interface.md`.
+
+## Executor Role (Sub-agent) Rules
+
+When running as a sub-agent (`SUMMONAI_ROLE=executor`):
+
+1. Follow SessionStart protocol (`task_get` first, `task_complete` at the end, factual verification).
+2. Keep scope strictly within assigned purpose + acceptance criteria.
+3. `conversation_load_recent` remains skipped for executor mode.
+4. Detailed executor operating rules live in `instructions/executor.md` (single source of truth).
 
 ## Task Creation Rules
 
-### Required fields — you decide WHAT, sub-agent decides HOW
-
-```yaml
-title: "Short description"
-north_star: "Why this matters to the business goal"
-purpose: "What 'done' looks like (verifiable)"
-acceptance_criteria:
-  - "Criterion 1 — specific, testable"
-  - "Criterion 2 — specific, testable"
-project: "project-id"
-priority: "high/medium/low"
-creator_role: "interface"
-assignee_role: "executor"
-```
-
-### Good vs Bad
-
-```yaml
-# Good — clear purpose, testable criteria
-purpose: "README.md documents setup, usage, and architecture"
-acceptance_criteria:
-  - "Quick Start section with copy-pasteable commands"
-  - "Architecture diagram or description"
-  - "All commands in README actually work"
-
-# Bad — vague
-purpose: "Write documentation"
-acceptance_criteria:
-  - "Docs are good"
-```
-
-Do NOT specify: implementation method, file structure decisions, library choices. The sub-agent decides HOW.
+Keep task contracts testable and outcome-focused (WHAT, not HOW).
+Full task design and review criteria are maintained in `instructions/interface.md`.
 
 ## Task Status Flow
 
