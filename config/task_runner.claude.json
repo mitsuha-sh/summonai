@@ -1,5 +1,6 @@
 {
   "enabled": true,
   "project_dir": ".",
-  "runner": "claude"
+  "runner": "claude",
+  "executor_stack": false
 }
