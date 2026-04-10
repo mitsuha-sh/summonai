@@ -1,0 +1,5 @@
+layout {
+    pane command="claude" {
+        args "--dangerously-skip-permissions"
+    }
+}
