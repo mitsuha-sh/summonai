@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "project_dir": "/Users/smitsuhashi/ghq/github.com/mitsuha-sh/summonai",
+  "project_dir": ".",
   "runner": "claude",
   "executor_stack": false
 }
