@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "SUMMONAI_AGENT_ID=summonai bash memory-mcp/scripts/session_start_memory_context.sh",
+            "command": "SUMMONAI_AGENT_ID=summonai bash /Users/smitsuhashi/ghq/github.com/mitsuha-sh/summonai/memory-mcp/scripts/session_start_memory_context.sh",
             "timeout": 15
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "SUMMONAI_AGENT_ID=summonai bash memory-mcp/scripts/stop_hook_conversation_save.sh",
+            "command": "SUMMONAI_AGENT_ID=summonai bash /Users/smitsuhashi/ghq/github.com/mitsuha-sh/summonai/memory-mcp/scripts/stop_hook_conversation_save.sh",
             "timeout": 15
           }
         ]
