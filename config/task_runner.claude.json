@@ -2,5 +2,6 @@
   "enabled": true,
   "project_dir": ".",
   "runner": "claude",
-  "executor_stack": false
+  "executor_stack": false,
+  "max_concurrent_executors": 3
 }
