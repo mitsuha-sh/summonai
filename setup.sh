@@ -74,14 +74,14 @@ if [ ! -f "$SETTINGS_PATH" ]; then
 fi
 
 TMP_FILE="$(mktemp)"
-jq '
+jq --arg root "$ROOT_DIR" '
   .hooks = {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "SUMMONAI_AGENT_ID=summonai bash memory-mcp/scripts/session_start_memory_context.sh",
+            "command": ("SUMMONAI_AGENT_ID=summonai bash " + $root + "/memory-mcp/scripts/session_start_memory_context.sh"),
             "timeout": 15
           }
         ]
@@ -92,7 +92,7 @@ jq '
         "hooks": [
           {
             "type": "command",
-            "command": "SUMMONAI_AGENT_ID=summonai bash memory-mcp/scripts/stop_hook_conversation_save.sh",
+            "command": ("SUMMONAI_AGENT_ID=summonai bash " + $root + "/memory-mcp/scripts/stop_hook_conversation_save.sh"),
             "timeout": 15
           }
         ]

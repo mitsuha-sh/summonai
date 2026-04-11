@@ -2,6 +2,7 @@
 *.log
 .mcp.json
 .claude/settings.local.json
+.claude/settings.json
 .DS_Store
 **/.DS_Store
 .summonai/
