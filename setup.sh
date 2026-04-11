@@ -50,15 +50,22 @@ claude mcp add -s project \
   -e SUMMONAI_TASK_RUNNER_CONFIG="$RUNNER_CONFIG" \
   -- uv run --directory "$ROOT_DIR/task-mcp" python -m summonai_task.server
 
-# ── 5. Generate task runner config (absolute paths) ──
-cat > "$RUNNER_CONFIG" <<RUNNER_EOF
+# ── 5. Task runner config ──
+# config/task_runner.claude.json is committed to git with relative project_dir.
+# Do not overwrite it with absolute paths (OSS policy).
+# Runtime paths are passed via SUMMONAI_TASK_RUNNER_CONFIG env var instead.
+if [ ! -f "$RUNNER_CONFIG" ]; then
+  cat > "$RUNNER_CONFIG" <<RUNNER_EOF
 {
   "enabled": true,
-  "project_dir": "$ROOT_DIR",
+  "project_dir": ".",
   "runner": "claude"
 }
 RUNNER_EOF
-echo "Generated: $RUNNER_CONFIG"
+  echo "Generated: $RUNNER_CONFIG"
+else
+  echo "Skipped (exists): $RUNNER_CONFIG"
+fi
 
 # ── 6. Hooks (SessionStart + Stop) ──
 mkdir -p "$ROOT_DIR/.claude"
