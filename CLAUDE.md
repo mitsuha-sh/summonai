@@ -57,7 +57,7 @@ On every session start (fresh, /clear, compaction recovery):
 1. Read this CLAUDE.md (auto-loaded)
 2. Persona is injected by SessionStart hook (USER.md + SOUL.md)
 3. Load context:
-   - `memory_load tags="code"` — persistent policies and lessons
+   - `memory_load bucket="code"` — persistent policies and lessons
    - `conversation_load_recent(agent_id="summonai", limit_chunks=6, since_days=3)` — recent session continuity
 4. Extract key topics from conversation logs → `memory_search` for related knowledge
    - Example: conversation mentions "task-mcp" → search for design decisions about task-mcp
