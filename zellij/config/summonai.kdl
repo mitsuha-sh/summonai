@@ -1,0 +1,47 @@
+// SummonAI — zellij configuration
+// Tab bar is enabled by default; this file locks it on and defines
+// the key bindings used when managing interface / executor tabs.
+
+themes {
+    default {
+        fg 238 238 238
+        bg 28 28 28
+        black 28 28 28
+        red 204 102 102
+        green 102 153 102
+        yellow 230 179 102
+        blue 102 153 204
+        magenta 178 102 204
+        cyan 102 204 204
+        white 238 238 238
+        orange 204 153 102
+    }
+}
+
+ui {
+    pane_frames {
+        rounded_corners true
+    }
+}
+
+// Always show the tab bar so the active tab name is visible.
+simplified_ui false
+
+keybinds clear-defaults=false {
+    // Tab navigation — move between interface and executor tabs
+    shared_except "locked" {
+        bind "Alt 1" { GoToTab 1; }
+        bind "Alt 2" { GoToTab 2; }
+        bind "Alt 3" { GoToTab 3; }
+        bind "Alt 4" { GoToTab 4; }
+        bind "Alt 5" { GoToTab 5; }
+        bind "Alt h" { GoToPreviousTab; }
+        bind "Alt l" { GoToNextTab; }
+
+        // Pane focus movement
+        bind "Alt Left"  { MoveFocusOrTab "Left"; }
+        bind "Alt Right" { MoveFocusOrTab "Right"; }
+        bind "Alt Up"    { MoveFocus "Up"; }
+        bind "Alt Down"  { MoveFocus "Down"; }
+    }
+}
