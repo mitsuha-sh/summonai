@@ -1,8 +1,7 @@
 layout {
-    pane split_direction="horizontal" {
-        pane size="55%" name="interface" command="claude"
-        pane size="45%" {
-            pane name="executor-anchor" command="zsh"
+    tab name="interface" {
+        pane command="claude" {
+            args "--dangerously-skip-permissions"
         }
     }
 }

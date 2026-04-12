@@ -19,7 +19,7 @@ start:
 		exec zellij attach summonai; \
 	else \
 		echo "Creating zellij session: summonai"; \
-		exec zellij --session summonai --new-session-with-layout "$(CURDIR)/zellij/layouts/summonai-start.kdl"; \
+		exec zellij --session summonai --config "$(CURDIR)/zellij/config/summonai.kdl" --new-session-with-layout "$(CURDIR)/zellij/layouts/summonai-start.kdl"; \
 	fi
 
 stop:
