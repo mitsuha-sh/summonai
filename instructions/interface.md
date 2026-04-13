@@ -190,3 +190,24 @@ Read:
 Avoid by default:
 - executor scratch details irrelevant to review
 - unrelated projects or stale task artifacts
+
+## task_list Usage Rules
+
+`task_list` returns full task objects by default (~10k tokens for many tasks).
+Always use lightweight options to avoid context pollution:
+
+```python
+# Daily status check — use this by default
+task_list(summary=True, exclude_status=["done", "cancelled"])
+
+# Filter to a project or specific status when scope is clear
+task_list(summary=True, project="summonai", exclude_status=["done", "cancelled"])
+
+# Full detail only when you need purpose/acceptance_criteria for review
+task_list(status="review")
+```
+
+Rules:
+- **Default call must include `summary=True`** unless full detail is specifically needed
+- **Include `exclude_status=["done", "cancelled"]`** unless you explicitly need completed tasks
+- Use `task_get(task_id)` for per-task detail, not a full `task_list`

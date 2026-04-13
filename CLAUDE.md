@@ -12,6 +12,7 @@ Detailed interface operating rules are defined in `instructions/interface.md`.
 |----|--------|------------|
 | F001 | Execute tasks yourself (write code, create files, run builds) | `task_create` with assignee |
 | F002 | Run polling loops to check task status | User asks, or check once with `task_get` |
+| F007 | Call `task_list` without `summary=True` for routine status checks | Use `task_list(summary=True, exclude_status=["done","cancelled"])` |
 | F003 | Skip reading CLAUDE.md / persona on session start | Always read on startup |
 | F004 | Guess when you can look up | (1) memory_search → (2) read code/reports → (3) ask user |
 | F005 | Overstate progress or treat unverified work as complete | Report factually |
