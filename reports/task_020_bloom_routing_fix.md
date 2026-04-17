@@ -30,11 +30,13 @@ tier ニックネーム（haiku/sonnet/opus）として使われており、「C
 - `[defaults]` セクションを読み込み、`defaults` キーで返す
 - `config_loaded` フラグを追加（ファイルが実在した場合 `True`）
 
-### task-mcp: task_create
+### task-mcp: task_create（初回コミット + Codex P1 修正）
 
-- defaults 適用: `bloom_level == 3`（デフォルト値）かつ `defaults.bloom_level` が設定されていれば上書き
-- defaults 適用: `executor is None` かつ `defaults.executor` が設定されていれば上書き
-- 未知 executor 拒否: `config_loaded=True` のときのみ、`capability_tiers` に存在しない executor 名を ValueError で拒否
+- **シグネチャ**: `bloom_level: int = 3` → `bloom_level: int | None = None`（sentinel 方式）
+- **defaults 適用**: `bloom_level is None` のときのみ `defaults.bloom_level` を適用、なければ 3 を確定
+  - ⚠️ 初回実装では `bloom_level == 3` で判定していたため、明示的に 3 を渡した場合も上書きされるバグがあった。Codex P1 指摘により sentinel 方式に修正。
+- **executor**: `executor is None` かつ `defaults.executor` が設定されていれば適用（変更なし）
+- **未知 executor 拒否**: `config_loaded=True` のときのみ、`capability_tiers` に存在しない executor 名を ValueError で拒否
 - エラーメッセージに利用可能な executor 名一覧を含む
 
 ---
@@ -62,15 +64,15 @@ executor = "claude"
 ```
 
 ```python
-task_create(title=..., ...)  # bloom_level/executor 未指定
-# → bloom_level=5, executor="claude" が適用される
+task_create(title=..., ...)          # bloom_level 未指定 → bloom_level=5, executor="claude"
+task_create(title=..., bloom_level=3)  # 明示的に 3 を指定 → bloom_level=3（defaults に上書きされない）
 ```
 
 ---
 
 ## テスト結果
 
-追加テスト 12 件（既存 81 件 + 追加 12 件 = 計 93 件、全件 pass）:
+追加テスト 14 件（既存 81 件 + 追加 14 件 = 計 95 件、全件 pass）:
 
 | テスト | 内容 |
 |--------|------|
@@ -80,11 +82,13 @@ task_create(title=..., ...)  # bloom_level/executor 未指定
 | `test_select_model_tier_same_executor_bloom6_picks_opus` | executor=claude + bloom_level=6 → opus |
 | `test_load_executors_config_reads_defaults` | [defaults] 読み込み確認 |
 | `test_load_executors_config_missing_config_loaded_false` | 設定なし → config_loaded=False |
-| `test_task_create_applies_defaults_bloom_level` | defaults.bloom_level 適用 |
-| `test_task_create_applies_defaults_executor` | defaults.executor 適用 |
+| `test_task_create_applies_defaults_bloom_level` | 未指定 → defaults.bloom_level 適用 |
+| `test_task_create_applies_defaults_executor` | 未指定 → defaults.executor 適用 |
 | `test_task_create_rejects_unknown_executor_when_config_loaded` | 未知 executor → ValueError |
 | `test_task_create_unknown_executor_error_lists_available` | エラーに一覧含む |
 | `test_task_create_accepts_unknown_executor_without_config` | 設定なし → 任意 executor OK |
+| `test_task_create_explicit_bloom3_not_overridden_by_defaults` | **明示的 bloom_level=3 は defaults で上書きされない** |
+| `test_task_create_unspecified_bloom_gets_defaults` | 未指定の場合は defaults が適用される |
 
 ---
 
