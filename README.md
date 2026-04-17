@@ -60,11 +60,11 @@ For dogfooding across multiple projects, point each project's `.summonai/memory.
 
 ## Bloom-based Executor Model Routing
 
-Each task has two optional fields that control which Claude model the executor uses:
+Each task has two optional fields that control which CLI tool and model the executor uses:
 
 - **`bloom_level`** (integer 1–6, default 3): cognitive complexity of the task, based on [Bloom's Taxonomy](https://en.wikipedia.org/wiki/Bloom%27s_taxonomy).
   - 1 = Remember, 2 = Understand, 3 = Apply, 4 = Analyze, 5 = Evaluate, 6 = Create
-- **`executor`** (string, optional): explicit executor tier name (e.g. `"haiku"`, `"sonnet"`, `"opus"`). If omitted, the cheapest tier that covers `bloom_level` is selected automatically.
+- **`executor`** (string, optional): CLI tool name (e.g. `"claude"`, `"codex"`, `"opencode"`). If omitted, the cheapest tier that covers `bloom_level` is selected across all executors.
 
 ### Setup
 
@@ -73,26 +73,37 @@ Each task has two optional fields that control which Claude model the executor u
 ### Example `config/executors.toml.example`
 
 ```toml
+# executor = CLI tool name (claude / codex / opencode)
+# Multiple tiers share the same executor, ordered by max_bloom (cheapest first).
+
 [[capability_tiers]]
-executor = "haiku"
+executor = "claude"
 model = "claude-haiku-4-5-20251001"
 max_bloom = 3
 cost_group = "low"
 
 [[capability_tiers]]
-executor = "sonnet"
+executor = "claude"
 model = "claude-sonnet-4-6"
 max_bloom = 5
 cost_group = "medium"
 
 [[capability_tiers]]
-executor = "opus"
+executor = "claude"
 model = "claude-opus-4-7"
 max_bloom = 6
 cost_group = "high"
 
-[runners.default]
+[runners.claude]
 template = "claude --model {model} --dangerously-skip-permissions"
+
+# [runners.codex]
+# template = "codex --model {model}"
+
+# [defaults]: fallback values for task_create when bloom_level / executor are omitted.
+[defaults]
+bloom_level = 3
+# executor = "claude"
 ```
 
 ### Selection Logic
@@ -102,6 +113,12 @@ template = "claude --model {model} --dangerously-skip-permissions"
 3. From remaining tiers, pick the one with the smallest `max_bloom` (cheapest).
 4. If no tier covers the bloom_level (coverage gap), fall back to the tier with the largest `max_bloom` and emit a `WARN` to stderr.
 5. If no executors.toml is present, the default `claude --dangerously-skip-permissions` command is used unchanged.
+
+### Unknown executor rejection
+
+When `executors.toml` is present, passing an `executor` value not listed in any
+`[[capability_tiers]]` entry raises a `ValueError` that lists the available executor names.
+Environments without a config file accept any executor string (legacy / no-config mode).
 
 ## Task Runner
 

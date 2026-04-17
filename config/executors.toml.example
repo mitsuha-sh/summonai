@@ -2,7 +2,9 @@
 # Copy to .summonai/executors.toml and edit locally.
 # Do not commit .summonai/executors.toml (it is git-ignored).
 
-# capability_tiers: each entry maps an executor name to a Claude model.
+# capability_tiers: each entry maps an executor (CLI tool name) and a model.
+# executor: CLI tool name — e.g. "claude", "codex", "opencode".
+#   Multiple tiers with the same executor are ordered by max_bloom (cheapest first).
 # max_bloom: the highest Bloom level (1-6) this tier can handle.
 #   1=Remember, 2=Understand, 3=Apply (default), 4=Analyze, 5=Evaluate, 6=Create
 # cost_group: informational label (low / medium / high).
@@ -10,35 +12,44 @@
 # Selection rules:
 #   - When task.executor is specified: pick the tier with that executor name
 #     whose max_bloom >= task.bloom_level (cheapest first).
-#   - When task.executor is unspecified: pick the cheapest (smallest max_bloom)
-#     tier whose max_bloom >= task.bloom_level across all tiers.
+#   - When task.executor is unspecified: pick the cheapest tier across all
+#     executors whose max_bloom >= task.bloom_level.
 #   - Coverage gap (no tier covers bloom_level): fall back to the tier with the
 #     largest max_bloom and emit a WARN to stderr.
 
 [[capability_tiers]]
-executor = "haiku"
+executor = "claude"
 model = "claude-haiku-4-5-20251001"
 max_bloom = 3
 cost_group = "low"
 
 [[capability_tiers]]
-executor = "sonnet"
+executor = "claude"
 model = "claude-sonnet-4-6"
 max_bloom = 5
 cost_group = "medium"
 
 [[capability_tiers]]
-executor = "opus"
+executor = "claude"
 model = "claude-opus-4-7"
 max_bloom = 6
 cost_group = "high"
 
-# runners: how to launch a Claude executor.
+# runners: how to launch an executor by CLI tool name.
 # {model} is replaced with the selected tier's model value.
-# Executor-specific runners take precedence over "default".
+# runners.<executor> takes precedence over runners.default.
 
-[runners.default]
+[runners.claude]
 template = "claude --model {model} --dangerously-skip-permissions"
 
-# [runners.haiku]
-# template = "claude --model {model} --dangerously-skip-permissions"
+# [runners.codex]
+# template = "codex --model {model}"
+
+# [defaults]: fallback values used when task_create is called without
+# explicit bloom_level or executor.
+# bloom_level: default Bloom level (1-6) when unspecified. Falls back to 3.
+# executor: pin to a specific CLI tool. Omit to allow cross-executor selection.
+
+[defaults]
+bloom_level = 3
+# executor = "claude"
