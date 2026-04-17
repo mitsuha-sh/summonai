@@ -3,7 +3,7 @@
 ## PR URLs
 
 - **task-mcp PR**: https://github.com/mitsuha-sh/summonai-task-mcp/pull/19
-- **summonai PR**: (see below — created from this branch)
+- **summonai PR**: https://github.com/mitsuha-sh/summonai/pull/18
 
 ## Migration Procedure
 
