@@ -10,3 +10,6 @@ summonai_memory.db*
 .worktrees/
 personas/*/USER.md
 personas/*/SOUL.md
+
+# Task execution reports (local only, not committed)
+reports/
