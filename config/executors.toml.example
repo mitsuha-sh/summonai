@@ -1,0 +1,44 @@
+# Bloom-based executor capability tiers for summonai-task-mcp
+# Copy to .summonai/executors.toml and edit locally.
+# Do not commit .summonai/executors.toml (it is git-ignored).
+
+# capability_tiers: each entry maps an executor name to a Claude model.
+# max_bloom: the highest Bloom level (1-6) this tier can handle.
+#   1=Remember, 2=Understand, 3=Apply (default), 4=Analyze, 5=Evaluate, 6=Create
+# cost_group: informational label (low / medium / high).
+#
+# Selection rules:
+#   - When task.executor is specified: pick the tier with that executor name
+#     whose max_bloom >= task.bloom_level (cheapest first).
+#   - When task.executor is unspecified: pick the cheapest (smallest max_bloom)
+#     tier whose max_bloom >= task.bloom_level across all tiers.
+#   - Coverage gap (no tier covers bloom_level): fall back to the tier with the
+#     largest max_bloom and emit a WARN to stderr.
+
+[[capability_tiers]]
+executor = "haiku"
+model = "claude-haiku-4-5-20251001"
+max_bloom = 3
+cost_group = "low"
+
+[[capability_tiers]]
+executor = "sonnet"
+model = "claude-sonnet-4-6"
+max_bloom = 5
+cost_group = "medium"
+
+[[capability_tiers]]
+executor = "opus"
+model = "claude-opus-4-7"
+max_bloom = 6
+cost_group = "high"
+
+# runners: how to launch a Claude executor.
+# {model} is replaced with the selected tier's model value.
+# Executor-specific runners take precedence over "default".
+
+[runners.default]
+template = "claude --model {model} --dangerously-skip-permissions"
+
+# [runners.haiku]
+# template = "claude --model {model} --dangerously-skip-permissions"

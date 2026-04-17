@@ -58,6 +58,51 @@ Edit the `persona_dir` in `.summonai/memory.toml` to point at the single source 
 
 For dogfooding across multiple projects, point each project's `.summonai/memory.toml` at the same `persona_dir` and use the same `agent_id`. Keep real persona files private; commit only examples.
 
+## Bloom-based Executor Model Routing
+
+Each task has two optional fields that control which Claude model the executor uses:
+
+- **`bloom_level`** (integer 1–6, default 3): cognitive complexity of the task, based on [Bloom's Taxonomy](https://en.wikipedia.org/wiki/Bloom%27s_taxonomy).
+  - 1 = Remember, 2 = Understand, 3 = Apply, 4 = Analyze, 5 = Evaluate, 6 = Create
+- **`executor`** (string, optional): explicit executor tier name (e.g. `"haiku"`, `"sonnet"`, `"opus"`). If omitted, the cheapest tier that covers `bloom_level` is selected automatically.
+
+### Setup
+
+`make setup` (or `setup.sh`) copies `config/executors.toml.example` to `.summonai/executors.toml` on first run. Edit `.summonai/executors.toml` to configure your capability tiers and runner templates. This file is git-ignored.
+
+### Example `config/executors.toml.example`
+
+```toml
+[[capability_tiers]]
+executor = "haiku"
+model = "claude-haiku-4-5-20251001"
+max_bloom = 3
+cost_group = "low"
+
+[[capability_tiers]]
+executor = "sonnet"
+model = "claude-sonnet-4-6"
+max_bloom = 5
+cost_group = "medium"
+
+[[capability_tiers]]
+executor = "opus"
+model = "claude-opus-4-7"
+max_bloom = 6
+cost_group = "high"
+
+[runners.default]
+template = "claude --model {model} --dangerously-skip-permissions"
+```
+
+### Selection Logic
+
+1. Filter tiers by `executor` if specified; otherwise consider all tiers.
+2. Keep tiers with `max_bloom >= bloom_level`.
+3. From remaining tiers, pick the one with the smallest `max_bloom` (cheapest).
+4. If no tier covers the bloom_level (coverage gap), fall back to the tier with the largest `max_bloom` and emit a `WARN` to stderr.
+5. If no executors.toml is present, the default `claude --dangerously-skip-permissions` command is used unchanged.
+
 ## Task Runner
 
 Default runner is `config/task_runner.claude.json` (Claude Code). To change, update `SUMMONAI_TASK_RUNNER_CONFIG` in `.mcp.json`.
