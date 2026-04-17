@@ -8,3 +8,5 @@
 .summonai/
 summonai_memory.db*
 .worktrees/
+personas/*/USER.md
+personas/*/SOUL.md
