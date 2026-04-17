@@ -44,10 +44,13 @@ claude mcp add -s project \
   -e SUMMONAI_MEMORY_DB="$MEMORY_DB" \
   -- "$VENV_DIR/bin/python" "$MEMORY_MCP_DIR/server.py"
 
+EXECUTORS_CONFIG="$ROOT_DIR/.summonai/executors.toml"
+
 claude mcp add -s project \
   summonai-task-mcp \
   -e SUMMONAI_TASK_DB="$TASK_DB" \
   -e SUMMONAI_TASK_RUNNER_CONFIG="$RUNNER_CONFIG" \
+  -e SUMMONAI_EXECUTORS_CONFIG="$EXECUTORS_CONFIG" \
   -- uv run --directory "$ROOT_DIR/task-mcp" python -m summonai_task.server
 
 # ── 5. Task runner config ──
@@ -67,7 +70,7 @@ else
   echo "Skipped (exists): $RUNNER_CONFIG"
 fi
 
-# ── 6. Project-local memory hook config ──
+# ── 6. Project-local memory hook config and executors config ──
 mkdir -p "$ROOT_DIR/.summonai" "$ROOT_DIR/personas/default"
 MEMORY_CONFIG="$ROOT_DIR/.summonai/memory.toml"
 PERSONA_DIR="$ROOT_DIR/personas/default"
@@ -80,6 +83,13 @@ scope_id = "summonai"
 persona_dir = "$PERSONA_DIR"
 EOF
   echo "Created $MEMORY_CONFIG"
+fi
+
+if [ ! -f "$EXECUTORS_CONFIG" ]; then
+  cp "$ROOT_DIR/config/executors.toml.example" "$EXECUTORS_CONFIG"
+  echo "Created $EXECUTORS_CONFIG (edit to customize capability tiers)"
+else
+  echo "Skipped (exists): $EXECUTORS_CONFIG"
 fi
 
 # ── 7. Hooks (SessionStart + Stop) ──
@@ -134,6 +144,7 @@ echo "- Memory hook config: .summonai/memory.toml"
 echo "- Persona source: $PERSONA_DIR"
 echo "- Memory venv: memory-mcp/.venv"
 echo "- Task runner: $RUNNER_CONFIG"
+echo "- Executor tiers: $EXECUTORS_CONFIG"
 echo ""
 echo "Start Claude Code:"
 echo "  cd $ROOT_DIR && claude"
