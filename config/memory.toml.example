@@ -1,0 +1,10 @@
+# Project-local runtime settings for summonai-memory-mcp hooks.
+# Copy to .summonai/memory.toml and edit locally.
+
+agent_id = "default"
+project = "summonai"
+scope_type = "project"
+scope_id = "summonai"
+
+# Optional single persona source. Keep real USER.md / SOUL.md private.
+# persona_dir = "/absolute/path/to/summonai/personas/default"

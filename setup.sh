@@ -67,7 +67,22 @@ else
   echo "Skipped (exists): $RUNNER_CONFIG"
 fi
 
-# ── 6. Hooks (SessionStart + Stop) ──
+# ── 6. Project-local memory hook config ──
+mkdir -p "$ROOT_DIR/.summonai" "$ROOT_DIR/personas/default"
+MEMORY_CONFIG="$ROOT_DIR/.summonai/memory.toml"
+PERSONA_DIR="$ROOT_DIR/personas/default"
+if [ ! -f "$MEMORY_CONFIG" ]; then
+  cat > "$MEMORY_CONFIG" <<EOF
+agent_id = "default"
+project = "summonai"
+scope_type = "project"
+scope_id = "summonai"
+persona_dir = "$PERSONA_DIR"
+EOF
+  echo "Created $MEMORY_CONFIG"
+fi
+
+# ── 7. Hooks (SessionStart + Stop) ──
 mkdir -p "$ROOT_DIR/.claude"
 if [ ! -f "$SETTINGS_PATH" ]; then
   printf '{}\n' > "$SETTINGS_PATH"
@@ -81,7 +96,7 @@ jq --arg root "$ROOT_DIR" '
         "hooks": [
           {
             "type": "command",
-            "command": ("SUMMONAI_AGENT_ID=summonai bash " + $root + "/memory-mcp/scripts/session_start_memory_context.sh"),
+            "command": ("SUMMONAI_DIR=" + $root + " SUMMONAI_MEMORY_CONFIG=" + $root + "/.summonai/memory.toml bash " + $root + "/memory-mcp/scripts/session_start_memory_context.sh"),
             "timeout": 15
           }
         ]
@@ -92,7 +107,7 @@ jq --arg root "$ROOT_DIR" '
         "hooks": [
           {
             "type": "command",
-            "command": ("SUMMONAI_AGENT_ID=summonai bash " + $root + "/memory-mcp/scripts/stop_hook_conversation_save.sh"),
+            "command": ("SUMMONAI_DIR=" + $root + " SUMMONAI_MEMORY_CONFIG=" + $root + "/.summonai/memory.toml bash " + $root + "/memory-mcp/scripts/stop_hook_conversation_save.sh"),
             "timeout": 15
           }
         ]
@@ -102,11 +117,10 @@ jq --arg root "$ROOT_DIR" '
 ' "$SETTINGS_PATH" > "$TMP_FILE"
 mv "$TMP_FILE" "$SETTINGS_PATH"
 
-# ── 7. Persona files ──
-PERSONA_DIR="$MEMORY_MCP_DIR/persona"
+# ── 8. Persona files ──
 for f in USER.md SOUL.md; do
-  if [ ! -f "$PERSONA_DIR/$f" ] && [ -f "$PERSONA_DIR/$f.example" ]; then
-    cp "$PERSONA_DIR/$f.example" "$PERSONA_DIR/$f"
+  if [ ! -f "$PERSONA_DIR/$f" ] && [ -f "$MEMORY_MCP_DIR/persona/$f.example" ]; then
+    cp "$MEMORY_MCP_DIR/persona/$f.example" "$PERSONA_DIR/$f"
     echo "Created $PERSONA_DIR/$f from example (edit to customize)"
   fi
 done
@@ -116,6 +130,8 @@ echo ""
 echo "Setup complete."
 echo "- MCP servers: .mcp.json"
 echo "- Hooks: .claude/settings.json (SessionStart + Stop)"
+echo "- Memory hook config: .summonai/memory.toml"
+echo "- Persona source: $PERSONA_DIR"
 echo "- Memory venv: memory-mcp/.venv"
 echo "- Task runner: $RUNNER_CONFIG"
 echo ""

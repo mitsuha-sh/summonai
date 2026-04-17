@@ -16,10 +16,11 @@ make start   # start/attach zellij session "summonai" and run claude in main pan
 1. Initializes git submodules
 2. Creates memory-mcp venv and installs dependencies (needed for hooks)
 3. Registers MCP servers in `.mcp.json` (project scope)
-4. Configures Claude Code hooks in `.claude/settings.json`:
+4. Writes project-local memory hook config to `.summonai/memory.toml`
+5. Configures Claude Code hooks in `.claude/settings.json`:
    - **SessionStart**: injects persona (USER.md/SOUL.md), memory restore instructions
    - **Stop**: auto-saves conversation to memory DB
-5. Copies persona templates if `USER.md`/`SOUL.md` don't exist yet
+6. Copies persona templates into the configured persona source if `USER.md`/`SOUL.md` don't exist yet
 
 ## Prerequisites
 
@@ -35,11 +36,14 @@ summonai/
 ├── Makefile                  # make setup / make start
 ├── .claude/settings.json     # hooks config (git-tracked)
 ├── .mcp.json                 # MCP server registration (git-ignored, machine-specific)
+├── .summonai/memory.toml     # memory hook identity config (git-ignored)
 ├── config/
 │   ├── task_runner.claude.json   # Claude Code as task runner
 │   └── task_runner.codex.json    # Codex as task runner (demo)
+├── personas/
+│   └── default/               # private USER.md / SOUL.md source
 ├── memory-mcp/               # submodule: persistent memory server
-│   ├── persona/              # USER.md, SOUL.md (your persona files)
+│   ├── persona/              # template examples
 │   └── scripts/              # session hooks
 ├── task-mcp/                 # submodule: task orchestration server
 ├── scripts/
@@ -50,7 +54,9 @@ summonai/
 
 ## Persona
 
-Edit `memory-mcp/persona/USER.md` and `memory-mcp/persona/SOUL.md` to define your profile and your AI assistant's personality. These are injected at every session start.
+Edit the `persona_dir` in `.summonai/memory.toml` to point at the single source for your persona files, then edit that directory's `USER.md` and `SOUL.md`. These are injected at every session start.
+
+For dogfooding across multiple projects, point each project's `.summonai/memory.toml` at the same `persona_dir` and use the same `agent_id`. Keep real persona files private; commit only examples.
 
 ## Task Runner
 
@@ -70,5 +76,6 @@ This repository keeps the setup entrypoint and delegates operational details (ru
 ## Notes
 
 - `.mcp.json` contains absolute paths and is git-ignored. Regenerate with `make setup`.
+- `.summonai/memory.toml` contains local identity/persona settings and is git-ignored. Use `config/memory.toml.example` as the public template.
 - `.claude/settings.json` contains hooks config and is git-tracked.
 - Submodule repos: [summonai-memory-mcp](https://github.com/mitsuha-sh/summonai-memory-mcp), [summonai-task-mcp](https://github.com/mitsuha-sh/summonai-task-mcp)
