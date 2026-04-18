@@ -92,7 +92,7 @@ else
   echo "Skipped (exists): $EXECUTORS_CONFIG"
 fi
 
-# ── 7. Hooks (SessionStart + Stop) ──
+# ── 7. Hooks (Claude: SessionStart + Stop, Codex: SessionStart) ──
 mkdir -p "$ROOT_DIR/.claude"
 if [ ! -f "$SETTINGS_PATH" ]; then
   printf '{}\n' > "$SETTINGS_PATH"
@@ -106,7 +106,7 @@ jq --arg root "$ROOT_DIR" '
         "hooks": [
           {
             "type": "command",
-            "command": ("SUMMONAI_DIR=" + $root + " SUMMONAI_MEMORY_CONFIG=" + $root + "/.summonai/memory.toml bash " + $root + "/memory-mcp/scripts/session_start_memory_context.sh"),
+            "command": ("SUMMONAI_DIR=" + $root + " SUMMONAI_MEMORY_CONFIG=" + $root + "/.summonai/memory.toml bash " + $root + "/scripts/hooks/session-start.sh"),
             "timeout": 15
           }
         ]
@@ -117,7 +117,7 @@ jq --arg root "$ROOT_DIR" '
         "hooks": [
           {
             "type": "command",
-            "command": ("SUMMONAI_DIR=" + $root + " SUMMONAI_MEMORY_CONFIG=" + $root + "/.summonai/memory.toml bash " + $root + "/memory-mcp/scripts/stop_hook_conversation_save.sh"),
+            "command": ("SUMMONAI_DIR=" + $root + " SUMMONAI_MEMORY_CONFIG=" + $root + "/.summonai/memory.toml bash " + $root + "/scripts/hooks/stop.sh"),
             "timeout": 15
           }
         ]
@@ -139,7 +139,8 @@ done
 echo ""
 echo "Setup complete."
 echo "- MCP servers: .mcp.json"
-echo "- Hooks: .claude/settings.json (SessionStart + Stop)"
+echo "- Hooks (Claude): .claude/settings.json (SessionStart + Stop)"
+echo "- Hooks (Codex): .codex/hooks.json (SessionStart)"
 echo "- Memory hook config: .summonai/memory.toml"
 echo "- Persona source: $PERSONA_DIR"
 echo "- Memory venv: memory-mcp/.venv"

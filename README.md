@@ -20,7 +20,9 @@ make start   # start/attach zellij session "summonai" and run claude in main pan
 5. Configures Claude Code hooks in `.claude/settings.json`:
    - **SessionStart**: injects persona (USER.md/SOUL.md), memory restore instructions
    - **Stop**: auto-saves conversation to memory DB
-6. Copies persona templates into the configured persona source if `USER.md`/`SOUL.md` don't exist yet
+6. Uses Codex hooks in `.codex/hooks.json`:
+   - **SessionStart**: injects the same startup context as Claude (`startup|resume|clear`)
+7. Copies persona templates into the configured persona source if `USER.md`/`SOUL.md` don't exist yet
 
 ## Prerequisites
 
@@ -35,6 +37,7 @@ summonai/
 ├── setup.sh                  # one-command setup
 ├── Makefile                  # make setup / make start
 ├── .claude/settings.json     # hooks config (git-tracked)
+├── .codex/hooks.json         # Codex SessionStart hook config (git-tracked)
 ├── .mcp.json                 # MCP server registration (git-ignored, machine-specific)
 ├── .summonai/memory.toml     # memory hook identity config (git-ignored)
 ├── config/
@@ -47,6 +50,9 @@ summonai/
 │   └── scripts/              # session hooks
 ├── task-mcp/                 # submodule: task orchestration server
 ├── scripts/
+│   ├── hooks/
+│   │   ├── session-start.sh  # shared SessionStart wrapper for Claude/Codex
+│   │   └── stop.sh           # shared Stop wrapper for Claude
 │   └── demo_task_agent.py    # demo task runner
 └── examples/
     └── hello-task.md         # sample task payload
