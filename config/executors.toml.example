@@ -43,7 +43,7 @@ cost_group = "high"
 template = "claude --model {model} --dangerously-skip-permissions"
 
 # [runners.codex]
-# template = "codex --model {model}"
+# template = "codex --model {model} --search --dangerously-bypass-approvals-and-sandbox --no-alt-screen"
 
 # [defaults]: fallback values used when task_create is called without
 # explicit bloom_level or executor.
