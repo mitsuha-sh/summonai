@@ -94,8 +94,7 @@ max_bloom = 6
 cost_group = "medium"
 
 [runners.codex]
-# Adjust flags to match your local Codex CLI setup (e.g. --approval-mode auto).
-template = "codex --model {model}"
+template = "codex --model {model} --search --dangerously-bypass-approvals-and-sandbox --no-alt-screen"
 
 [defaults]
 bloom_level = 3
@@ -124,8 +123,7 @@ max_bloom = 6
 cost_group = "high"
 
 [runners.codex]
-# Adjust flags to match your local Codex CLI setup (e.g. --approval-mode auto).
-template = "codex --model {model}"
+template = "codex --model {model} --search --dangerously-bypass-approvals-and-sandbox --no-alt-screen"
 
 [defaults]
 bloom_level = 3
@@ -169,8 +167,7 @@ cost_group = "high"
 template = "claude --model {model} --dangerously-skip-permissions"
 
 [runners.codex]
-# Adjust flags to match your local Codex CLI setup (e.g. --approval-mode auto).
-template = "codex --model {model}"
+template = "codex --model {model} --search --dangerously-bypass-approvals-and-sandbox --no-alt-screen"
 
 [defaults]
 bloom_level = 3
