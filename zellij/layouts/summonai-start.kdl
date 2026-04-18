@@ -9,8 +9,8 @@ layout {
         }
     }
     tab name="interface" {
-        pane command="claude" {
-            args "--dangerously-skip-permissions"
+        pane command="bash" {
+            args "scripts/start-interface.sh"
         }
     }
 }
