@@ -5,7 +5,9 @@
 .claude/settings.json
 .DS_Store
 **/.DS_Store
-.summonai/
+.summonai/*
+!.summonai/executors.toml
+!.summonai/interface.toml
 summonai_memory.db*
 .worktrees/
 personas/*/USER.md
