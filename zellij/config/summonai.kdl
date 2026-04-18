@@ -28,8 +28,18 @@ ui {
 simplified_ui false
 
 keybinds clear-defaults=false {
-    // Tab navigation — move between interface and executor tabs
+    // Disable default Ctrl mode-switch keys that conflict with Claude Code shortcuts.
+    unbind "Ctrl g"
+    unbind "Ctrl o"
+    unbind "Ctrl b"
+    unbind "Ctrl s"
+    unbind "Ctrl t"
+
+    // Entry bindings (normal -> mode) remapped to Ctrl+Alt+key.
     shared_except "locked" {
+        bind "Ctrl Alt g" { SwitchToMode "Locked"; }
+
+        // Tab navigation — move between interface and executor tabs
         bind "Alt 1" { GoToTab 1; }
         bind "Alt 2" { GoToTab 2; }
         bind "Alt 3" { GoToTab 3; }
@@ -43,5 +53,35 @@ keybinds clear-defaults=false {
         bind "Alt Right" { MoveFocusOrTab "Right"; }
         bind "Alt Up"    { MoveFocus "Up"; }
         bind "Alt Down"  { MoveFocus "Down"; }
+    }
+
+    shared_except "session" "locked" {
+        bind "Ctrl Alt o" { SwitchToMode "Session"; }
+    }
+    shared_except "tmux" "locked" {
+        bind "Ctrl Alt b" { SwitchToMode "Tmux"; }
+    }
+    shared_except "scroll" "locked" {
+        bind "Ctrl Alt s" { SwitchToMode "Scroll"; }
+    }
+    shared_except "tab" "locked" {
+        bind "Ctrl Alt t" { SwitchToMode "Tab"; }
+    }
+
+    // Exit bindings (mode -> normal) remapped to Ctrl+Alt+key.
+    locked {
+        bind "Ctrl Alt g" { SwitchToMode "Normal"; }
+    }
+    session {
+        bind "Ctrl Alt o" { SwitchToMode "Normal"; }
+    }
+    tmux {
+        bind "Ctrl Alt b" { Write 2; SwitchToMode "Normal"; }
+    }
+    scroll {
+        bind "Ctrl Alt s" { SwitchToMode "Normal"; }
+    }
+    tab {
+        bind "Ctrl Alt t" { SwitchToMode "Normal"; }
     }
 }
