@@ -49,8 +49,16 @@ Do not load unrelated conversation history by default.
 - Re-read outputs
 - Summarize results factually
 - Call `task_complete(task_id=..., summary=..., artifact_paths=[...], verification=...)`
-- **成果物は `.summonai/artifacts/<task_id>/` 以下に置くこと。**
-  `artifact_paths` に渡すパスは `.summonai/artifacts/` から始まる相対パスでなければならない（空リストは許容）。
+- **成果物は常に summonai プロジェクトルート配下の絶対パスに保存すること。**
+- まず保存先ルート `SUMMONAI_ROOT` を次の優先順で決定する:
+  1. `SUMMONAI_ROOT` 環境変数があればそれを使う
+  2. `SUMMONAI_WORKTREE_PATH` があれば `realpath "$SUMMONAI_WORKTREE_PATH"` を解決し、`.../.worktrees/<task_id>` の2階層上を `SUMMONAI_ROOT` とする
+  3. 上記がなければ `git rev-parse --show-toplevel` を使う
+- 実ファイル保存先は `"$SUMMONAI_ROOT/.summonai/artifacts/<task_id>/"` とする。
+- `task_complete(..., artifact_paths=[...])` に渡す値は、**常に** `.summonai/artifacts/` から始まる相対パスを使う（空リストは許容）。
+- 例:
+  - 絶対パス保存先: `/abs/path/to/summonai/.summonai/artifacts/048/report.md`
+  - `artifact_paths`: `.summonai/artifacts/048/report.md`
 
 ## Commit Rules
 
