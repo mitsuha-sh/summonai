@@ -31,10 +31,6 @@ start-mobile:
 		echo "Error: claude CLI is not installed."; \
 		exit 1; \
 	}
-	@if zellij list-sessions -n 2>/dev/null | grep -Fxq "summonai"; then \
-		echo "Detaching PC session: summonai"; \
-		ZELLIJ_SESSION_NAME=summonai zellij action detach 2>/dev/null || true; \
-	fi
 	@if zellij list-sessions -n 2>/dev/null | grep -Fxq "summonai-mobile"; then \
 		echo "Attaching existing zellij session: summonai-mobile"; \
 		exec zellij attach summonai-mobile; \
