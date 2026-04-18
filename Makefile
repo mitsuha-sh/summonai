@@ -37,7 +37,7 @@ start-mobile:
 		exec zellij attach summonai-mobile; \
 	else \
 		echo "Creating zellij session with mobile layout: summonai-mobile"; \
-		exec zellij --session summonai-mobile --config "$(CURDIR)/zellij/config/summonai.kdl" --new-session-with-layout "$(CURDIR)/zellij/layouts/summonai-start-mobile.kdl"; \
+		exec zellij --session summonai-mobile --config "$(CURDIR)/zellij/config/summonai-mobile.kdl" --new-session-with-layout "$(CURDIR)/zellij/layouts/summonai-start-mobile.kdl"; \
 	fi
 
 stop:
