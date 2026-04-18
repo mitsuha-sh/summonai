@@ -1,8 +1,0 @@
-[defaults]
-bloom_level = 3
-executor = "claude"
-
-[[capability_tiers]]
-executor = "claude"
-model = "claude-sonnet-4-6"
-max_bloom = 6
