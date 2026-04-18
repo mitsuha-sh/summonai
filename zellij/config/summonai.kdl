@@ -28,15 +28,10 @@ ui {
 simplified_ui false
 
 keybinds clear-defaults=false {
-    // Disable default Ctrl mode-switch keys that conflict with Claude Code shortcuts.
-    unbind "Ctrl g"
-    unbind "Ctrl o"
-    unbind "Ctrl b"
-    unbind "Ctrl s"
-    unbind "Ctrl t"
-
     // Entry bindings (normal -> mode) remapped to Ctrl+Alt+key.
     shared_except "locked" {
+        // Scope unbind to the original shared mode-switch context only.
+        unbind "Ctrl g"
         bind "Ctrl Alt g" { SwitchToMode "Locked"; }
 
         // Tab navigation — move between interface and executor tabs
@@ -56,15 +51,23 @@ keybinds clear-defaults=false {
     }
 
     shared_except "session" "locked" {
+        unbind "Ctrl o"
         bind "Ctrl Alt o" { SwitchToMode "Session"; }
+    }
+    shared_except "tmux" "locked" "scroll" "search" {
+        unbind "Ctrl b"
     }
     shared_except "tmux" "locked" {
         bind "Ctrl Alt b" { SwitchToMode "Tmux"; }
+    }
+    shared_except "scroll" "locked" "search" "session" {
+        unbind "Ctrl s"
     }
     shared_except "scroll" "locked" {
         bind "Ctrl Alt s" { SwitchToMode "Scroll"; }
     }
     shared_except "tab" "locked" {
+        unbind "Ctrl t"
         bind "Ctrl Alt t" { SwitchToMode "Tab"; }
     }
 
