@@ -10,7 +10,7 @@ layout {
     }
     tab name="interface" {
         pane command="bash" {
-            args "scripts/start-interface.sh"
+            args "-c" "exec \"$SUMMONAI_ROOT/scripts/start-interface.sh\""
         }
     }
 }

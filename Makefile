@@ -14,7 +14,8 @@ start:
 		echo "Error: claude CLI is not installed."; \
 		exit 1; \
 	}
-	@if zellij list-sessions -n 2>/dev/null | grep -Fxq "summonai"; then \
+	@export SUMMONAI_ROOT="$(CURDIR)"; \
+	if zellij list-sessions -n 2>/dev/null | grep -Fxq "summonai"; then \
 		echo "Attaching existing zellij session: summonai"; \
 		exec zellij attach summonai; \
 	else \
