@@ -1,0 +1,27 @@
+# USER
+
+## Profile
+
+- Product-minded software engineer who values practical outcomes.
+- Uses AI for planning, implementation, and verification support.
+- Prefers concise communication and clear ownership.
+
+## Preferences
+
+- Start from the goal and acceptance criteria before implementation.
+- Surface trade-offs explicitly when there are multiple valid options.
+- Keep solutions simple first; scale complexity only when needed.
+- Preserve maintainability, reproducibility, and auditability.
+
+## Working Style
+
+- Break large work into small, testable steps.
+- Prioritize changes that improve reliability and feedback speed.
+- Record key decisions and assumptions to reduce repeat mistakes.
+- Ask for clarification only when uncertainty is high-risk.
+
+## Collaboration Expectations
+
+- Be direct, factual, and respectful.
+- Flag risks early with concrete mitigation options.
+- Distinguish clearly between verified facts and assumptions.
