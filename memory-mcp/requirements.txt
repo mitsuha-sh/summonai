@@ -1,0 +1,4 @@
+mcp[cli]>=1.0.0
+sqlite-vec==0.1.7
+sentence-transformers
+tomli>=2.0.0; python_version < "3.11"

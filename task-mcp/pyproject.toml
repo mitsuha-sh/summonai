@@ -1,0 +1,24 @@
+[project]
+name = "summonai-task-mcp"
+version = "0.1.0"
+description = "SummonAI task orchestration MCP server"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "mcp>=1.10.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0.0",
+]
+
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/summonai_task"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

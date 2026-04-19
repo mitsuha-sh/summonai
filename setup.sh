@@ -18,12 +18,6 @@ fi
 # ── 1. Data directory ──
 mkdir -p "$DATA_DIR"
 
-# ── 2. Submodule init ──
-if [ ! -f "$ROOT_DIR/memory-mcp/server.py" ] || [ ! -f "$ROOT_DIR/task-mcp/pyproject.toml" ]; then
-  echo "Initializing submodules..."
-  git -C "$ROOT_DIR" submodule update --init
-fi
-
 # ── 3. memory-mcp venv (required for hooks) ──
 MEMORY_MCP_DIR="$ROOT_DIR/memory-mcp"
 VENV_DIR="$MEMORY_MCP_DIR/.venv"
