@@ -17,8 +17,8 @@ layout {
         children
     }
     tab name="interface" {
-        pane borderless=true command="claude" {
-            args "--dangerously-skip-permissions"
+        pane borderless=true command="bash" {
+            args "-c" "exec \"$SUMMONAI_ROOT/scripts/start-interface.sh\""
         }
     }
 }
