@@ -1184,8 +1184,6 @@ def task_reopen(task_id: str, message: str, actor_id: str = "system") -> dict:
 
             if existing_pane_id:
                 try:
-                    pane.send_text(session, existing_pane_id, reopen_cmd)
-                    _wait_for_any_output(session, existing_pane_id, timeout=60.0)
                     pane.send_text(session, existing_pane_id, context_message)
                     runner_started = True
                     _log_event(

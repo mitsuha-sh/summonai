@@ -1340,11 +1340,11 @@ def test_task_reopen_with_existing_pane_restarts_claude(
     assert result["runner_error"] is None
     assert result["pane_id"] == "terminal_99"
 
-    assert sent_payloads[0] == ("summonai", "terminal_99", "claude --dangerously-skip-permissions")
-    assert sent_payloads[1][0] == "summonai"
-    assert sent_payloads[1][1] == "terminal_99"
-    assert "add retry logic" in sent_payloads[1][2]
-    assert task_id in sent_payloads[1][2]
+    assert len(sent_payloads) == 1
+    assert sent_payloads[0][0] == "summonai"
+    assert sent_payloads[0][1] == "terminal_99"
+    assert "add retry logic" in sent_payloads[0][2]
+    assert task_id in sent_payloads[0][2]
 
     detail = server.task_get(task_id, include_history=True)
     assert any(e["event_type"] == "pane_restarted" for e in detail["events"])
