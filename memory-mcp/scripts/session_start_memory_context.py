@@ -125,14 +125,10 @@ def resolve_executor_instructions_path() -> Path | None:
 def emit_executor_instructions_markdown() -> None:
     path = resolve_executor_instructions_path()
     if not path:
-        print(
-            "[SESSION_START_EXECUTOR_INSTRUCTIONS] "
-            "instructions/executor.md が見つからないため注入をスキップ。"
-        )
+        print("[SESSION_START_EXECUTOR_INSTRUCTIONS] WARNING: instructions/executor.md not found, skipping injection.")
         return
-    print("[SESSION_START_EXECUTOR_INSTRUCTIONS] ----- BEGIN executor.md -----")
+    print("[SESSION_START_EXECUTOR_INSTRUCTIONS]")
     print(path.read_text(encoding="utf-8").rstrip())
-    print("[SESSION_START_EXECUTOR_INSTRUCTIONS] ----- END executor.md -----")
 
 
 def resolve_interface_instructions_path() -> Path | None:
@@ -172,16 +168,18 @@ def main() -> int:
         except json.JSONDecodeError:
             payload = {}
 
-    emit_persona_markdown(payload)
-    emit_memory_guidelines_markdown()
+    role, task_id_from_pane = _resolve_role_and_task_id()
+    is_executor = role == "executor"
+
+    if not is_executor:
+        emit_persona_markdown(payload)
+        emit_memory_guidelines_markdown()
     if not memory_l1_save_enabled(payload):
         print("[SESSION_START_MEMORY] memory_l1_save=0 のため L1/L2 memory 復元をスキップせよ。")
         return 0
 
     agent_id = resolve_agent_id(payload)
     scope = resolve_scope(payload)
-    role, task_id_from_pane = _resolve_role_and_task_id()
-    is_executor = role == "executor"
     scope_type = scope["scope_type"] or "user"
     scope_id = scope["scope_id"] or "global"
     project = scope["project"]
@@ -190,9 +188,7 @@ def main() -> int:
     if is_executor:
         task_id = task_id_from_pane or "<missing-task-id>"
         print(
-            "[SESSION_START_EXECUTOR_PROTOCOL] "
-            f"executor として起動中。task_get(task_id=\"{task_id}\") でタスク詳細を確認し、"
-            f"完了時は task_complete(task_id=\"{task_id}\") を必ず呼ぶこと。"
+            f"[SESSION_START_EXECUTOR_PROTOCOL] executor task_id=\"{task_id}\""
         )
         emit_executor_instructions_markdown()
         print(
@@ -202,7 +198,6 @@ def main() -> int:
             "executor pane のため conversation_load_recent はスキップせよ。"
         )
     else:
-        emit_interface_instructions_markdown()
         print(
             "[SESSION_START_MEMORY] "
             f"scope_type={scope_type} scope_id={scope_id}. "

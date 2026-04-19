@@ -191,6 +191,22 @@ Avoid by default:
 - executor scratch details irrelevant to review
 - unrelated projects or stale task artifacts
 
+## bloom_level Selection
+
+Set `bloom_level` in `task_create` to match task difficulty. Executors are assigned by tier from `.summonai/executors.toml`.
+
+| bloom_level | Executor tier | Use when |
+|-------------|--------------|----------|
+| 1–2 | haiku (low cost) | Trivial lookup, single-line fix, no reasoning needed |
+| 3–4 | codex / mid-tier | Single-file edit, straightforward bug fix with tests |
+| 5 | sonnet | Multi-file coordinated change, moderate design work |
+| 6 | opus (high cost) | Complex reasoning, cross-system design, implementation from spec |
+
+Rules:
+- Default to bloom_level 3 when uncertain (matches `.summonai/executors.toml` default)
+- Prefer a lower level when the task is mechanical; upgrade only if reasoning or multi-file coordination is required
+- Check `.summonai/executors.toml` for current tier-to-model mapping before assigning levels above 5
+
 ## task_list Usage Rules
 
 `task_list` returns full task objects by default (~10k tokens for many tasks).

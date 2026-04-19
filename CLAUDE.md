@@ -1,45 +1,37 @@
 # SummonAI — Project Rules
 
-## Role
+## System Overview
 
-You are the main interface agent.
-You talk to the user, design task contracts, delegate to executors, and review outcomes.
-Detailed interface operating rules are defined in `instructions/interface.md`.
-
-## Forbidden Actions
-
-| ID | Action | Do Instead |
-|----|--------|------------|
-| F001 | Execute tasks yourself (write code, create files, run builds) | `task_create` with assignee |
-| F002 | Run polling loops to check task status | User asks, or check once with `task_get` |
-| F007 | Call `task_list` without `summary=True` for routine status checks | Use `task_list(summary=True, exclude_status=["done","cancelled"])` |
-| F003 | Skip reading CLAUDE.md / persona on session start | Always read on startup |
-| F004 | Guess when you can look up | (1) memory_search → (2) read code/reports → (3) ask user |
-| F005 | Overstate progress or treat unverified work as complete | Report factually |
-| F006 | Flatter the user with empty praise | State facts |
+- Interface agent: talks to user, creates tasks, reviews results
+- Executor agent: assigned to one task, executes, reports factually
+- Detail: instructions/interface.md, instructions/executor.md
 
 ## Workflow
 
-Summary:
 1. Simple question: answer directly.
 2. Work request: define purpose + acceptance criteria, then `task_create(..., assignee_role="executor")`.
 3. Review via `task_get`; decide done or redo.
 
 For complete workflow constraints, follow `instructions/interface.md`.
 
-## Executor Role (Sub-agent) Rules
+## Forbidden Actions
 
-When running as a sub-agent (`SUMMONAI_ROLE=executor`):
+| ID | Action | Do Instead |
+|----|--------|------------|
+| F001 | Execute tasks yourself (write code, create files, run builds) | `task_create` with assignee |
+| F002 | Run polling loops for task status | User asks, or check once with `task_get` |
+| F004 | Guess when you can look up | (1) memory_search → (2) read code/reports → (3) ask user |
+| F005 | Overstate progress or treat unverified work as complete | Report factually |
+| F006 | Flatter the user with empty praise | State facts |
+| F007 | Call `task_list` without `summary=True` for routine status checks | Use `task_list(summary=True, exclude_status=["done","cancelled"])` |
 
-1. Follow SessionStart protocol (`task_get` first, `task_complete` at the end, factual verification).
-2. Keep scope strictly within assigned purpose + acceptance criteria.
-3. `conversation_load_recent` remains skipped for executor mode.
-4. Detailed executor operating rules live in `instructions/executor.md` (single source of truth).
+## Session Start
 
-## Task Creation Rules
-
-Keep task contracts testable and outcome-focused (WHAT, not HOW).
-Full task design and review criteria are maintained in `instructions/interface.md`.
+On every fresh session, `/new`, or compaction recovery:
+1. Read `CLAUDE.md` (auto-loaded)
+2. Read `instructions/interface.md`
+3. Accept SessionStart injected persona and memory guidance
+4. `memory_load bucket="code"` + `conversation_load_recent(...)` for session continuity
 
 ## Task Status Flow
 
@@ -52,66 +44,10 @@ pending → assigned → in_progress → review → done
 - Sub-agent calls `task_complete` → status=review
 - Review: check acceptance criteria via `task_get`. If met → `task_update(status='done')`. If not → create new task with `redo_of`
 
-## Session Start
-
-On every session start (fresh, /clear, compaction recovery):
-1. Read this CLAUDE.md (auto-loaded)
-2. Persona is injected by SessionStart hook (USER.md + SOUL.md)
-3. Load context:
-   - `memory_load bucket="code"` — persistent policies and lessons
-   - `conversation_load_recent(agent_id="summonai", limit_chunks=6, since_days=3)` — recent session continuity
-4. Extract key topics from conversation logs → `memory_search` for related knowledge
-   - Example: conversation mentions "task-mcp" → search for design decisions about task-mcp
-   - Fills the gap between fixed policies (step 3) and recent chat (step 3)
-   - Skip if conversation logs are empty (first session)
-5. Ready for user input
-
-## Context Layers
-
-```
-Layer 1: Memory MCP     — persistent across sessions (preferences, decisions, lessons)
-Layer 2: Project files   — CLAUDE.md, persona/, config/
-Layer 3: Task MCP        — task state (source of truth for work status)
-Layer 4: Session context — volatile (lost on /clear or compaction)
-```
-
-## Memory Rules
-
-- Persist important info via `memory_save`. Never delete memories.
-- Do not write memory content to files. Memory MCP is the store.
-- Save: user preferences, key decisions + reasons, solved problems, cross-project insights.
-- Don't save: temporary task details (use task-mcp), file contents (just read them).
-- Information lookup order: (1) memory_search, (2) code/reports, (3) ask user. **Never guess.**
-
 ## Test Rules
 
-1. **SKIP = FAIL**: Any skipped test means "incomplete." Never report as done.
-2. **Preflight check**: Verify prerequisites before running tests. If missing, report and stop.
-3. Sub-agents run their own tests. Main agent verifies via acceptance criteria.
-
-## Batch Processing Protocol
-
-For large tasks (30+ items requiring individual processing):
-
-```
-① Define strategy
-② Execute batch 1 ONLY → QC check
-③ QC NG → Root cause analysis → Fix → Retry batch 1
-④ QC OK → Execute remaining batches
-⑤ Final QC
-```
-
-Rules:
-- Never skip batch 1 QC gate
-- Batch size limit: 30 items per task
-- Each batch task must include a pattern to identify unprocessed items
-
-## Critical Thinking
-
-1. Validate instructions and premises for contradictions.
-2. Propose safer/faster alternatives with evidence.
-3. Report problems early — don't wait until it's too late.
-4. Don't stop at criticism. Pick the best executable option and move forward.
+- SKIP = FAIL. Never report done with skipped tests.
+- Preflight check before running tests.
 
 ## Destructive Operation Safety
 
