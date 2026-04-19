@@ -299,13 +299,17 @@ def _worktree_path(project_dir: str, task_id: str) -> Path:
 def _create_worktree(project_dir: str, task_id: str) -> Path:
     worktree = _worktree_path(project_dir, task_id)
     branch = f"feature/{task_id}"
-    subprocess.run(
-        ["git", "worktree", "add", str(worktree), "-b", branch, "origin/main"],
-        cwd=project_dir,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        subprocess.run(
+            ["git", "worktree", "add", str(worktree), "-b", branch, "origin/main"],
+            cwd=project_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        raise RuntimeError(f"git worktree add failed: {stderr}") from exc
     return worktree
 
 
@@ -1074,14 +1078,24 @@ def task_resume(task_id: str, actor_id: str = "system") -> dict:
                 "pane_id": current_pane_id,
             }
 
-        resume_cfg = _load_executors_config(config.get("project_dir"))
+        extra_env: dict[str, str] = {}
+        project_dir = config.get("project_dir")
+        if row["needs_worktree"] and project_dir:
+            worktree = _worktree_path(project_dir, task_id)
+            if not worktree.exists():
+                worktree = _create_worktree(project_dir, task_id)
+            extra_env["SUMMONAI_WORKTREE_PATH"] = str(worktree)
+
+        resume_cfg = _load_executors_config(project_dir)
         resume_bloom = int(row["bloom_level"] if row["bloom_level"] is not None else 3)
         resume_executor = row["executor"] or None
         resume_tier, resume_gap = _select_model_tier(resume_bloom, resume_executor, resume_cfg["capability_tiers"])
         resume_cmd = _build_executor_command(resume_tier, resume_cfg["runners"], resume_gap, resume_bloom)
 
         pane_id = _spawn_executor_pane(
-            session, task_id, _executor_resume_prompt(task_id), launch_command=resume_cmd
+            session, task_id, _executor_resume_prompt(task_id),
+            extra_env=extra_env or None,
+            launch_command=resume_cmd,
         )
         conn.execute("UPDATE tasks SET pane_id = ?, updated_at = ? WHERE id = ?", (pane_id, _utc_now(), task_id))
         _log_event(

@@ -1678,6 +1678,183 @@ def test_task_complete_does_not_remove_worktree_when_flag_false(
     assert remove_calls == []
 
 
+def test_create_worktree_stderr_propagated_to_runner_error(
+    isolated_db: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config = tmp_path / "runner_config.json"
+    config.write_text(
+        json.dumps({
+            "enabled": True,
+            "runner": "zellij",
+            "zellij_session": "summonai",
+            "project_dir": str(tmp_path),
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SUMMONAI_TASK_RUNNER_CONFIG", str(config))
+    monkeypatch.setattr(server.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(server.pane, "list_panes", lambda _session: [])
+
+    import subprocess as _subprocess
+
+    original_run = _subprocess.run
+
+    def _failing_run(cmd: list[str], **kwargs):
+        if cmd[:2] == ["git", "worktree"]:
+            exc = _subprocess.CalledProcessError(1, cmd)
+            exc.stderr = "fatal: branch already exists"
+            raise exc
+        return original_run(cmd, **kwargs)
+
+    monkeypatch.setattr(server.subprocess, "run", _failing_run)
+
+    created = server.task_create(
+        title="Stderr test",
+        north_star="stderr propagation",
+        purpose="verify stderr in runner_error",
+        acceptance_criteria=["stderr in runner_error"],
+        project="summonai-task",
+        priority="high",
+        creator_role="interface",
+        assignee_role="executor",
+        needs_worktree=True,
+    )
+
+    assert created["runner_started"] is False
+    assert created["runner_error"] is not None
+    assert "fatal: branch already exists" in created["runner_error"]
+
+
+def test_task_resume_recreates_worktree_when_missing(
+    isolated_db: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config = tmp_path / "runner_config.json"
+    config.write_text(
+        json.dumps({
+            "enabled": True,
+            "runner": "zellij",
+            "zellij_session": "summonai",
+            "project_dir": str(tmp_path),
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SUMMONAI_TASK_RUNNER_CONFIG", str(config))
+    monkeypatch.setattr(server.tempfile, "gettempdir", lambda: str(tmp_path))
+
+    created = server.task_create(
+        title="Resume worktree",
+        north_star="worktree recovery",
+        purpose="verify worktree recreation on resume",
+        acceptance_criteria=["worktree recreated"],
+        project="summonai-task",
+        priority="high",
+        creator_role="interface",
+        assignee_role="executor",
+        needs_worktree=True,
+    )
+    task_id = created["task_id"]
+
+    worktree_calls: list[tuple[str, str]] = []
+
+    def _fake_create_worktree(project_dir: str, tid: str) -> Path:
+        worktree_calls.append((project_dir, tid))
+        wt = Path(project_dir) / ".worktrees" / tid
+        wt.mkdir(parents=True, exist_ok=True)
+        return wt
+
+    monkeypatch.setattr(server, "_create_worktree", _fake_create_worktree)
+    monkeypatch.setattr(server.pane, "list_panes", lambda _session: [])
+    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name: "terminal_77")
+    monkeypatch.setattr(server.pane, "go_to_tab", lambda _session, _tab_name: None)
+
+    sent_payloads: list[str] = []
+    monkeypatch.setattr(
+        server.pane,
+        "send_text",
+        lambda _session, _pane_id, text: sent_payloads.append(text),
+    )
+    monkeypatch.setattr(
+        server,
+        "_wait_for_any_output",
+        lambda _session, _pane_id, timeout=30.0, interval=0.5: "executor >",
+    )
+
+    result = server.task_resume(task_id=task_id, actor_id="interface")
+
+    assert result["resumed"] is True
+    assert len(worktree_calls) == 1
+    assert worktree_calls[0][1] == task_id
+
+    worktree_path = str(Path(str(tmp_path)) / ".worktrees" / task_id)
+    launch_cmd = sent_payloads[0]
+    assert f"SUMMONAI_WORKTREE_PATH={worktree_path}" in launch_cmd
+
+
+def test_task_resume_skips_worktree_creation_when_exists(
+    isolated_db: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config = tmp_path / "runner_config.json"
+    config.write_text(
+        json.dumps({
+            "enabled": True,
+            "runner": "zellij",
+            "zellij_session": "summonai",
+            "project_dir": str(tmp_path),
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SUMMONAI_TASK_RUNNER_CONFIG", str(config))
+    monkeypatch.setattr(server.tempfile, "gettempdir", lambda: str(tmp_path))
+
+    created = server.task_create(
+        title="Resume existing worktree",
+        north_star="worktree skip",
+        purpose="verify worktree not recreated when exists",
+        acceptance_criteria=["worktree not recreated"],
+        project="summonai-task",
+        priority="high",
+        creator_role="interface",
+        assignee_role="executor",
+        needs_worktree=True,
+    )
+    task_id = created["task_id"]
+
+    existing_worktree = tmp_path / ".worktrees" / task_id
+    existing_worktree.mkdir(parents=True, exist_ok=True)
+
+    worktree_calls: list[tuple[str, str]] = []
+
+    def _fake_create_worktree(project_dir: str, tid: str) -> Path:
+        worktree_calls.append((project_dir, tid))
+        return Path(project_dir) / ".worktrees" / tid
+
+    monkeypatch.setattr(server, "_create_worktree", _fake_create_worktree)
+    monkeypatch.setattr(server.pane, "list_panes", lambda _session: [])
+    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name: "terminal_78")
+    monkeypatch.setattr(server.pane, "go_to_tab", lambda _session, _tab_name: None)
+
+    sent_payloads: list[str] = []
+    monkeypatch.setattr(
+        server.pane,
+        "send_text",
+        lambda _session, _pane_id, text: sent_payloads.append(text),
+    )
+    monkeypatch.setattr(
+        server,
+        "_wait_for_any_output",
+        lambda _session, _pane_id, timeout=30.0, interval=0.5: "executor >",
+    )
+
+    result = server.task_resume(task_id=task_id, actor_id="interface")
+
+    assert result["resumed"] is True
+    assert worktree_calls == []
+
+    worktree_path = str(existing_worktree)
+    launch_cmd = sent_payloads[0]
+    assert f"SUMMONAI_WORKTREE_PATH={worktree_path}" in launch_cmd
+
+
 # ── _cleanup_panes_without_tasks tests ────────────────────────────────────────
 
 def test_cleanup_panes_without_tasks_closes_orphan_hex_pane(
