@@ -331,5 +331,125 @@ class SessionStartMemoryContextTest(unittest.TestCase):
         self.assertIn("conversation_load_recent(", out)
 
 
+class ZellijTabNameRoleDetectionTest(unittest.TestCase):
+    def _make_panes_json(self, pane_id: int, tab_name: str, is_plugin: bool = False) -> str:
+        panes = [{"id": pane_id, "is_plugin": is_plugin, "tab_name": tab_name, "title": "test"}]
+        return json.dumps(panes)
+
+    def _run_with_zellij_mock(self, pane_id: str, session: str, stdout: str, returncode: int = 0):
+        env = {"ZELLIJ_PANE_ID": pane_id, "ZELLIJ_SESSION_NAME": session}
+        completed = mock.MagicMock()
+        completed.returncode = returncode
+        completed.stdout = stdout
+        with mock.patch.dict("os.environ", env, clear=True):
+            with mock.patch("session_start_memory_context.subprocess.run", return_value=completed) as mock_run:
+                result = session_start_memory_context._resolve_role_and_task_id()
+        return result, mock_run
+
+    def test_zellij_task_tab_name_returns_executor_role(self):
+        panes_json = self._make_panes_json(3, "task-061")
+        result, _ = self._run_with_zellij_mock("3", "summonai", panes_json)
+        self.assertEqual(result, ("executor", "061"))
+
+    def test_zellij_interface_tab_name_returns_interface_role(self):
+        panes_json = self._make_panes_json(0, "interface")
+        result, _ = self._run_with_zellij_mock("0", "summonai", panes_json)
+        self.assertEqual(result, ("interface", ""))
+
+    def test_zellij_task_tab_name_with_zero_padded_id(self):
+        panes_json = self._make_panes_json(5, "task-062")
+        result, _ = self._run_with_zellij_mock("5", "summonai", panes_json)
+        self.assertEqual(result, ("executor", "062"))
+
+    def test_zellij_multiple_panes_matches_correct_pane(self):
+        panes = [
+            {"id": 0, "is_plugin": False, "tab_name": "interface", "title": "t1"},
+            {"id": 2, "is_plugin": False, "tab_name": "task-060", "title": "t2"},
+            {"id": 3, "is_plugin": False, "tab_name": "task-061", "title": "t3"},
+        ]
+        result, _ = self._run_with_zellij_mock("3", "summonai", json.dumps(panes))
+        self.assertEqual(result, ("executor", "061"))
+
+    def test_zellij_failure_falls_back_to_tmp_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            task_file = Path(tmpdir) / "summonai_pane_terminal_3.task_id"
+            task_file.write_text("task_fallback\n", encoding="utf-8")
+            env = {"ZELLIJ_PANE_ID": "3", "ZELLIJ_SESSION_NAME": "summonai"}
+            completed = mock.MagicMock()
+            completed.returncode = 1
+            completed.stdout = ""
+            with mock.patch.dict("os.environ", env, clear=True):
+                with mock.patch("session_start_memory_context.subprocess.run", return_value=completed):
+                    with mock.patch("session_start_memory_context.tempfile.gettempdir", return_value=tmpdir):
+                        result = session_start_memory_context._resolve_role_and_task_id()
+        self.assertEqual(result, ("executor", "task_fallback"))
+
+    def test_zellij_exception_falls_back_to_tmp_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            task_file = Path(tmpdir) / "summonai_pane_terminal_2.task_id"
+            task_file.write_text("task_exc_fallback\n", encoding="utf-8")
+            env = {"ZELLIJ_PANE_ID": "2", "ZELLIJ_SESSION_NAME": "summonai"}
+            with mock.patch.dict("os.environ", env, clear=True):
+                with mock.patch("session_start_memory_context.subprocess.run", side_effect=FileNotFoundError("zellij not found")):
+                    with mock.patch("session_start_memory_context.tempfile.gettempdir", return_value=tmpdir):
+                        result = session_start_memory_context._resolve_role_and_task_id()
+        self.assertEqual(result, ("executor", "task_exc_fallback"))
+
+    def test_zellij_pane_not_found_falls_back_to_env(self):
+        panes = [{"id": 0, "is_plugin": False, "tab_name": "interface", "title": "t1"}]
+        env = {
+            "ZELLIJ_PANE_ID": "99",
+            "ZELLIJ_SESSION_NAME": "summonai",
+            "SUMMONAI_ROLE": "executor",
+            "SUMMONAI_TASK_ID": "env_task",
+        }
+        completed = mock.MagicMock()
+        completed.returncode = 0
+        completed.stdout = json.dumps(panes)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with mock.patch.dict("os.environ", env, clear=True):
+                with mock.patch("session_start_memory_context.subprocess.run", return_value=completed):
+                    with mock.patch("session_start_memory_context.tempfile.gettempdir", return_value=tmpdir):
+                        result = session_start_memory_context._resolve_role_and_task_id()
+        self.assertEqual(result, ("executor", "env_task"))
+
+    def test_zellij_uses_correct_command_args(self):
+        panes_json = self._make_panes_json(1, "task-042")
+        _, mock_run = self._run_with_zellij_mock("1", "my-session", panes_json)
+        mock_run.assert_called_once_with(
+            ["zellij", "--session", "my-session", "action", "list-panes", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+    def test_zellij_pane_id_key_variant(self):
+        panes = [{"pane_id": "3", "is_plugin": False, "tab_name": "task-070", "title": "t"}]
+        result, _ = self._run_with_zellij_mock("3", "summonai", json.dumps(panes))
+        self.assertEqual(result, ("executor", "070"))
+
+    def test_zellij_paneId_camel_case_key_variant(self):
+        panes = [{"paneId": "5", "is_plugin": False, "tab_name": "task-071", "title": "t"}]
+        result, _ = self._run_with_zellij_mock("5", "summonai", json.dumps(panes))
+        self.assertEqual(result, ("executor", "071"))
+
+    def test_zellij_pane_id_already_prefixed_key(self):
+        panes = [{"pane_id": "terminal_7", "is_plugin": False, "tab_name": "interface", "title": "t"}]
+        result, _ = self._run_with_zellij_mock("7", "summonai", json.dumps(panes))
+        self.assertEqual(result, ("interface", ""))
+
+    def test_no_session_name_skips_zellij_uses_tmp_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            task_file = Path(tmpdir) / "summonai_pane_terminal_1.task_id"
+            task_file.write_text("task_no_session\n", encoding="utf-8")
+            env = {"ZELLIJ_PANE_ID": "1"}
+            with mock.patch.dict("os.environ", env, clear=True):
+                with mock.patch("session_start_memory_context.subprocess.run") as mock_run:
+                    with mock.patch("session_start_memory_context.tempfile.gettempdir", return_value=tmpdir):
+                        result = session_start_memory_context._resolve_role_and_task_id()
+        mock_run.assert_not_called()
+        self.assertEqual(result, ("executor", "task_no_session"))
+
+
 if __name__ == "__main__":
     unittest.main()

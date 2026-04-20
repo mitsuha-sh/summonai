@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -18,6 +19,24 @@ from hook_context import (
 )
 
 _EXECUTOR_PANE_FILE_PATTERN = "summonai_pane_{key}.task_id"
+
+
+def _zellij_pane_full_id(pane: dict) -> str | None:
+    """Return the normalized pane id string ("terminal_N" or "plugin_N").
+
+    Mirrors the key-lookup order used by task-mcp/pane.py:_extract_pane_id()
+    to handle the three JSON key variants zellij may emit.
+    """
+    for key in ("pane_id", "paneId", "id"):
+        value = pane.get(key)
+        if value is None:
+            continue
+        raw = str(value)
+        if raw.isdigit():
+            pane_type = "plugin" if pane.get("is_plugin") else "terminal"
+            return f"{pane_type}_{raw}"
+        return raw  # already "terminal_N" / "plugin_N" or unknown format
+    return None
 
 
 def resolve_repo_dir() -> Path:
@@ -35,10 +54,35 @@ def _resolve_role_and_task_id() -> tuple[str, str]:
     """Returns (role, task_id).
 
     Detection order:
-    1. ZELLIJ_PANE_ID env var -> look up /tmp/summonai_pane_terminal_{N}.task_id
-    2. Fallback: SUMMONAI_ROLE / SUMMONAI_TASK_ID env vars (for tmux-based dev/testing)
+    1. ZELLIJ_PANE_ID + ZELLIJ_SESSION_NAME -> zellij action list-panes --json tab_name
+    2. ZELLIJ_PANE_ID only -> /tmp/summonai_pane_terminal_{N}.task_id (stale-safe fallback)
+    3. SUMMONAI_ROLE / SUMMONAI_TASK_ID env vars (non-zellij fallback)
     """
     pane_id = os.environ.get("ZELLIJ_PANE_ID", "").strip()
+    session = os.environ.get("ZELLIJ_SESSION_NAME", "").strip()
+
+    if pane_id and session:
+        try:
+            result = subprocess.run(
+                ["zellij", "--session", session, "action", "list-panes", "--json"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                panes = json.loads(result.stdout)
+                my_key = f"terminal_{pane_id}"
+                for p in panes:
+                    pid = _zellij_pane_full_id(p)
+                    if pid == my_key:
+                        tab_name = p.get("tab_name", "")
+                        if tab_name.startswith("task-"):
+                            return "executor", tab_name[len("task-"):]
+                        if tab_name == "interface":
+                            return "interface", ""
+        except Exception:
+            pass
+
     if pane_id:
         # ZELLIJ_PANE_ID is numeric (e.g. "1"); server.py writes "terminal_1" keyed files.
         for key in (f"terminal_{pane_id}", pane_id):
