@@ -248,8 +248,7 @@ class SessionStartMemoryContextTest(unittest.TestCase):
         self.assertNotIn("conversation_load_recent(", out)
         self.assertIn("[SESSION_START_EXECUTOR_PROTOCOL]", out)
         self.assertIn("[SESSION_START_EXECUTOR_INSTRUCTIONS]", out)
-        self.assertIn("task_get(task_id=", out)
-        self.assertIn("task_complete(task_id=\"<missing-task-id>\")", out)
+        self.assertIn('task_id="<missing-task-id>"', out)
 
     def test_executor_role_emits_protocol_with_task_id(self):
         payload = {"agent_id": "worker1", "project": "sample-project"}
@@ -269,8 +268,7 @@ class SessionStartMemoryContextTest(unittest.TestCase):
         self.assertEqual(rc, 0)
         out = stdout.getvalue()
         self.assertIn("[SESSION_START_EXECUTOR_PROTOCOL]", out)
-        self.assertIn("task_get(task_id=\"task_abc123\")", out)
-        self.assertIn("task_complete(task_id=\"task_abc123\")", out)
+        self.assertIn('task_id="task_abc123"', out)
 
     def test_executor_role_skips_executor_instructions_when_missing(self):
         payload = {"agent_id": "worker1", "project": "sample-project"}
@@ -287,7 +285,7 @@ class SessionStartMemoryContextTest(unittest.TestCase):
         self.assertEqual(rc, 0)
         out = stdout.getvalue()
         self.assertIn("[SESSION_START_EXECUTOR_INSTRUCTIONS]", out)
-        self.assertIn("見つからないため注入をスキップ", out)
+        self.assertIn("not found, skipping injection", out)
 
     def test_interface_role_emits_interface_instructions(self):
         payload = {"agent_id": "worker1", "project": "sample-project"}
@@ -306,9 +304,8 @@ class SessionStartMemoryContextTest(unittest.TestCase):
 
         self.assertEqual(rc, 0)
         out = stdout.getvalue()
-        self.assertIn("[SESSION_START_INTERFACE_INSTRUCTIONS]", out)
-        self.assertIn("BEGIN interface.md", out)
-        self.assertIn("# interface", out)
+        self.assertNotIn("[SESSION_START_INTERFACE_INSTRUCTIONS]", out)
+        self.assertIn("SESSION_START_PERSONA", out)
         self.assertIn("conversation_load_recent(", out)
 
     def test_unset_role_keeps_conversation_load_recent(self):
@@ -328,8 +325,8 @@ class SessionStartMemoryContextTest(unittest.TestCase):
 
         self.assertEqual(rc, 0)
         out = stdout.getvalue()
-        self.assertIn("[SESSION_START_INTERFACE_INSTRUCTIONS]", out)
-        self.assertIn("BEGIN interface.md", out)
+        self.assertNotIn("[SESSION_START_INTERFACE_INSTRUCTIONS]", out)
+        self.assertIn("SESSION_START_PERSONA", out)
         self.assertIn("memory_load bucket=\"code\"", out)
         self.assertIn("conversation_load_recent(", out)
 
