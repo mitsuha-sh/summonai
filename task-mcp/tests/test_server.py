@@ -212,9 +212,10 @@ def test_task_create_starts_zellij_runner_and_persists_pane_id(
         (
             "summonai",
             "terminal_42",
-            f'task_id="{created["task_id"]}" のタスクを開始せよ。'
-            f'task_get(task_id="{created["task_id"]}") でタスク詳細を確認し、'
-            "acceptance_criteria を満たして task_complete を呼べ。",
+            f'start task_id="{created["task_id"]}" — '
+            f'task_get(task_id="{created["task_id"]}") で purpose/acceptance_criteria を確認し、'
+            f'task_update(status="in_progress") を呼んでから作業を開始せよ。'
+            f'完了後は task_complete を呼べ。',
         ),
     ]
     assert wait_calls == [30.0, 60.0]
