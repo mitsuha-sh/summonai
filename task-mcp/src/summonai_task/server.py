@@ -272,11 +272,7 @@ def _active_pane_ids(session: str) -> set[str]:
 
 
 def _executor_start_prompt(task_id: str) -> str:
-    return (
-        f'task_id="{task_id}" のタスクを開始せよ。'
-        f'task_get(task_id="{task_id}") でタスク詳細を確認し、'
-        "acceptance_criteria を満たして task_complete を呼べ。"
-    )
+    return f'start task_id="{task_id}"'
 
 
 def _executor_resume_prompt(task_id: str) -> str:
