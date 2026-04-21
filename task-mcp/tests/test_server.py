@@ -172,7 +172,7 @@ def test_task_create_starts_zellij_runner_and_persists_pane_id(
 
     sent_payloads: list[tuple[str, str, str]] = []
     monkeypatch.setattr(server.pane, "list_panes", lambda _session: [])
-    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name: "terminal_42")
+    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name, cwd=None: "terminal_42")
     monkeypatch.setattr(server.pane, "go_to_tab", lambda _session, _tab_name: None)
     monkeypatch.setattr(
         server.pane,
@@ -271,7 +271,7 @@ def test_task_create_returns_runner_error_on_ready_timeout(
     )
     monkeypatch.setenv("SUMMONAI_TASK_RUNNER_CONFIG", str(config))
     monkeypatch.setattr(server.pane, "list_panes", lambda _session: [])
-    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name: "42")
+    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name, cwd=None: "42")
     monkeypatch.setattr(server.pane, "go_to_tab", lambda _session, _tab_name: None)
     monkeypatch.setattr(server.pane, "send_text", lambda _session, _pane_id, _text: None)
     closed: list[str] = []
@@ -308,7 +308,7 @@ def test_task_create_returns_runner_error_when_executor_prompt_timeout(
     )
     monkeypatch.setenv("SUMMONAI_TASK_RUNNER_CONFIG", str(config))
     monkeypatch.setattr(server.pane, "list_panes", lambda _session: [])
-    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name: "42")
+    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name, cwd=None: "42")
     monkeypatch.setattr(server.pane, "go_to_tab", lambda _session, _tab_name: None)
     sent_payloads: list[str] = []
     monkeypatch.setattr(server.pane, "send_text", lambda _session, _pane_id, text: sent_payloads.append(text))
@@ -636,7 +636,7 @@ def test_task_resume_recreates_missing_pane(
         conn.execute("UPDATE tasks SET status = ?, pane_id = ? WHERE id = ?", ("assigned", "terminal_10", task_id))
 
     monkeypatch.setattr(server.pane, "list_panes", lambda _session: [{"pane_id": "terminal_99"}])
-    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name: "terminal_42")
+    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name, cwd=None: "terminal_42")
     monkeypatch.setattr(server.pane, "go_to_tab", lambda _session, _tab_name: None)
     sent_payloads: list[tuple[str, str, str]] = []
     monkeypatch.setattr(
@@ -1364,7 +1364,7 @@ def test_task_reopen_without_pane_creates_new_pane(
 
     sent_payloads: list[tuple[str, str, str]] = []
     monkeypatch.setattr(server.pane, "list_panes", lambda _session: [])
-    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name: "terminal_77")
+    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name, cwd=None: "terminal_77")
     monkeypatch.setattr(server.pane, "go_to_tab", lambda _session, _tab_name: None)
     monkeypatch.setattr(
         server.pane, "send_text",
@@ -1469,7 +1469,7 @@ def test_spawn_creates_worktree_when_needs_worktree_true(
 
     monkeypatch.setattr(server, "_create_worktree", _fake_create_worktree)
     monkeypatch.setattr(server.pane, "list_panes", lambda _session: [])
-    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name: "terminal_99")
+    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name, cwd=None: "terminal_99")
     monkeypatch.setattr(server.pane, "go_to_tab", lambda _session, _tab_name: None)
 
     sent_payloads: list[str] = []
@@ -1530,7 +1530,7 @@ def test_spawn_does_not_create_worktree_when_needs_worktree_false(
 
     monkeypatch.setattr(server, "_create_worktree", _fake_create_worktree)
     monkeypatch.setattr(server.pane, "list_panes", lambda _session: [])
-    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name: "terminal_88")
+    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name, cwd=None: "terminal_88")
     monkeypatch.setattr(server.pane, "go_to_tab", lambda _session, _tab_name: None)
     monkeypatch.setattr(server.pane, "send_text", lambda *a, **kw: None)
     monkeypatch.setattr(
@@ -1763,7 +1763,7 @@ def test_task_resume_recreates_worktree_when_missing(
 
     monkeypatch.setattr(server, "_create_worktree", _fake_create_worktree)
     monkeypatch.setattr(server.pane, "list_panes", lambda _session: [])
-    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name: "terminal_77")
+    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name, cwd=None: "terminal_77")
     monkeypatch.setattr(server.pane, "go_to_tab", lambda _session, _tab_name: None)
 
     sent_payloads: list[str] = []
@@ -1829,7 +1829,7 @@ def test_task_resume_skips_worktree_creation_when_exists(
 
     monkeypatch.setattr(server, "_create_worktree", _fake_create_worktree)
     monkeypatch.setattr(server.pane, "list_panes", lambda _session: [])
-    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name: "terminal_78")
+    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name, cwd=None: "terminal_78")
     monkeypatch.setattr(server.pane, "go_to_tab", lambda _session, _tab_name: None)
 
     sent_payloads: list[str] = []
@@ -2258,7 +2258,7 @@ template = "claude --model {model} --dangerously-skip-permissions"
     monkeypatch.delenv("SUMMONAI_EXECUTORS_CONFIG", raising=False)
     monkeypatch.setattr(server.tempfile, "gettempdir", lambda: str(tmp_path))
     monkeypatch.setattr(server.pane, "list_panes", lambda _session: [])
-    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name: "terminal_42")
+    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name, cwd=None: "terminal_42")
     monkeypatch.setattr(server.pane, "go_to_tab", lambda _session, _tab_name: None)
 
     sent_payloads: list[str] = []
@@ -2318,7 +2318,7 @@ template = "claude --model {model} --dangerously-skip-permissions"
     monkeypatch.delenv("SUMMONAI_EXECUTORS_CONFIG", raising=False)
     monkeypatch.setattr(server.tempfile, "gettempdir", lambda: str(tmp_path))
     monkeypatch.setattr(server.pane, "list_panes", lambda _session: [])
-    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name: "terminal_42")
+    monkeypatch.setattr(server.pane, "create_tab", lambda _session, name, cwd=None: "terminal_42")
     monkeypatch.setattr(server.pane, "go_to_tab", lambda _session, _tab_name: None)
 
     sent_payloads: list[str] = []

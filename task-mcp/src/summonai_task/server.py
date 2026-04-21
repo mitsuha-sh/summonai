@@ -331,10 +331,11 @@ def _spawn_executor_pane(
     prompt: str,
     extra_env: dict[str, str] | None = None,
     launch_command: str = "claude --dangerously-skip-permissions",
+    cwd: str | None = None,
 ) -> str:
     pane_id: str | None = None
     try:
-        pane_id = pane.create_tab(session, f"task-{task_id}")
+        pane_id = pane.create_tab(session, f"task-{task_id}", cwd=cwd)
         # Restore focus to the interface tab so it is not displaced by the new
         # executor tab.  Best-effort: if the tab does not exist yet (e.g. old
         # layout without tab name), skip rather than aborting the spawn.
@@ -402,9 +403,11 @@ def _spawn_task_runner_if_configured(conn: sqlite3.Connection, task_id: str) -> 
     task_row = _get_task_row(conn, task_id)
     extra_env: dict[str, str] = {}
     project_dir = config["project_dir"]
+    executor_cwd = project_dir
     if task_row["needs_worktree"] and project_dir:
         worktree = _create_worktree(project_dir, task_id)
         extra_env["SUMMONAI_WORKTREE_PATH"] = str(worktree)
+        executor_cwd = str(worktree)
 
     executors_cfg = _load_executors_config(project_dir)
     tiers = executors_cfg["capability_tiers"]
@@ -418,6 +421,7 @@ def _spawn_task_runner_if_configured(conn: sqlite3.Connection, task_id: str) -> 
         session, task_id, _executor_start_prompt(task_id),
         extra_env=extra_env or None,
         launch_command=launch_command,
+        cwd=executor_cwd,
     )
 
     conn.execute("UPDATE tasks SET pane_id = ?, updated_at = ? WHERE id = ?", (pane_id, _utc_now(), task_id))
@@ -1079,11 +1083,13 @@ def task_resume(task_id: str, actor_id: str = "system") -> dict:
 
         extra_env: dict[str, str] = {}
         project_dir = config.get("project_dir")
+        executor_cwd = project_dir
         if row["needs_worktree"] and project_dir:
             worktree = _worktree_path(project_dir, task_id)
             if not worktree.exists():
                 worktree = _create_worktree(project_dir, task_id)
             extra_env["SUMMONAI_WORKTREE_PATH"] = str(worktree)
+            executor_cwd = str(worktree)
 
         resume_cfg = _load_executors_config(project_dir)
         resume_bloom = int(row["bloom_level"] if row["bloom_level"] is not None else 3)
@@ -1095,6 +1101,7 @@ def task_resume(task_id: str, actor_id: str = "system") -> dict:
             session, task_id, _executor_resume_prompt(task_id),
             extra_env=extra_env or None,
             launch_command=resume_cmd,
+            cwd=executor_cwd,
         )
         conn.execute("UPDATE tasks SET pane_id = ?, updated_at = ? WHERE id = ?", (pane_id, _utc_now(), task_id))
         _log_event(
@@ -1185,11 +1192,18 @@ def task_reopen(task_id: str, message: str, actor_id: str = "system") -> dict:
         runner_error: str | None = None
         result_pane_id = existing_pane_id
 
-        executors_cfg = _load_executors_config(config.get("project_dir"))
+        reopen_project_dir = config.get("project_dir")
+        executors_cfg = _load_executors_config(reopen_project_dir)
         reopen_bloom = int(row["bloom_level"] if row["bloom_level"] is not None else 3)
         reopen_executor = row["executor"] or None
         reopen_tier, reopen_gap = _select_model_tier(reopen_bloom, reopen_executor, executors_cfg["capability_tiers"])
         reopen_cmd = _build_executor_command(reopen_tier, executors_cfg["runners"], reopen_gap, reopen_bloom)
+
+        reopen_cwd = reopen_project_dir
+        if row["needs_worktree"] and reopen_project_dir:
+            wt = _worktree_path(reopen_project_dir, task_id)
+            if wt.exists():
+                reopen_cwd = str(wt)
 
         if config["enabled"]:
             if not session:
@@ -1211,7 +1225,7 @@ def task_reopen(task_id: str, message: str, actor_id: str = "system") -> dict:
             else:
                 new_pane_id: str | None = None
                 try:
-                    new_pane_id = pane.create_tab(session, f"task-{task_id}")
+                    new_pane_id = pane.create_tab(session, f"task-{task_id}", cwd=reopen_cwd)
                     pane.go_to_tab(session, INTERFACE_TAB_NAME)
                     task_id_file = Path(tempfile.gettempdir()) / f"summonai_pane_{new_pane_id}.task_id"
                     task_id_file.write_text(task_id, encoding="utf-8")

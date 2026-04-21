@@ -103,6 +103,40 @@ def test_create_tab_returns_new_pane_id() -> None:
         ]
 
 
+def test_create_tab_with_cwd_passes_cwd_flag() -> None:
+    with patch(
+        "summonai_task.pane.subprocess.run",
+        side_effect=[
+            _cp(stdout='[{"id":1}]'),
+            _cp(),
+            _cp(stdout='[{"id":1},{"id":2}]'),
+        ],
+    ) as run:
+        pane_id = pane.create_tab("summonai", "task-002", cwd="/home/user/project")
+
+        assert pane_id == "terminal_2"
+        assert run.call_args_list == [
+            call(
+                ["zellij", "--session", "summonai", "action", "list-panes", "--json"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ),
+            call(
+                ["zellij", "--session", "summonai", "action", "new-tab", "--name", "task-002", "--cwd", "/home/user/project"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ),
+            call(
+                ["zellij", "--session", "summonai", "action", "list-panes", "--json"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ),
+        ]
+
+
 def test_send_text_writes_payload_and_enter() -> None:
     with (
         patch("summonai_task.pane.subprocess.run", return_value=_cp()) as run,
