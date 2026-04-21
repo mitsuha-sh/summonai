@@ -116,7 +116,7 @@ def resolve_agent_id(payload: dict | None = None) -> str:
         pick_env("SUMMONAI_AGENT_ID")
         or config.get("agent_id")
         or tmux_option("agent_id")
-        or "default"
+        or "summonai"
     )
 
 
