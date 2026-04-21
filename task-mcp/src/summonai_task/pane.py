@@ -56,14 +56,20 @@ def _normalize_pane_id(value: object, pane: dict) -> str:
     return raw
 
 
-def create_tab(session: str, name: str) -> str:
+def create_tab(session: str, name: str, cwd: str | None = None) -> str:
     """Create a new tab and return its default pane_id.
 
     Issues ``zellij action new-tab --name <name>`` and returns the pane_id of
     the single default pane that zellij creates inside the new tab.
+
+    When *cwd* is given, ``--cwd <path>`` is passed so the new tab's shell
+    starts in the specified directory instead of inheriting the server's cwd.
     """
     before = {pane_id for pane_id in (_extract_pane_id(p) for p in list_panes(session)) if pane_id}
-    _run_zellij(session, ["new-tab", "--name", name])
+    cmd = ["new-tab", "--name", name]
+    if cwd is not None:
+        cmd.extend(["--cwd", cwd])
+    _run_zellij(session, cmd)
     after = list_panes(session)
     new_ids = [pane_id for pane_id in (_extract_pane_id(p) for p in after) if pane_id and pane_id not in before]
     if len(new_ids) == 1:
