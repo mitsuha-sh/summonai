@@ -1,42 +1,32 @@
 #!/usr/bin/env python3
-"""UserPromptSubmit hook: passive memory recall via vector similarity search.
+"""UserPromptSubmit hook: passive memory recall via Unix socket IPC.
 
-Reads a Claude Code user_prompt_submit JSON from stdin, extracts the user's
-text, and searches memories_vec (knowledge + content buckets) for relevant
-memories. Matching memories are printed as [RECALL] blocks for context
-injection. Empty stdout when nothing relevant is found.
+Sends the user's prompt to the already-running memory-mcp server process
+(which has ruri-v3-130m warm in memory) via a Unix socket, receives
+matching memories, applies session-level dedup, and prints [RECALL] blocks.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import socket
 import sys
 import tempfile
 import time
 from pathlib import Path
 
 WINDOW_SIZE = 5       # sliding window: last N turns for dedup
-SIM_THRESHOLD = 0.65  # cosine similarity cutoff
 TOP_K = 3             # max memories to inject
 TOKEN_BUDGET = 500    # max total tokens
-SEARCH_K = 8          # k for vec0 KNN search
-TARGET_BUCKETS = ("knowledge", "content")
+SIM_THRESHOLD = 0.65  # keep in sync with server.py _RECALL_SIM_THRESHOLD
+
+SOCKET_GLOB = "summonai_recall_*.sock"
+SOCKET_TIMEOUT = 2.0  # seconds per socket attempt
 
 
 def _estimate_tokens(text: str) -> int:
     return len(text) // 4 if text else 0
-
-
-_embed_model = None
-
-
-def _get_model():
-    global _embed_model
-    if _embed_model is None:
-        from sentence_transformers import SentenceTransformer
-        _embed_model = SentenceTransformer("cl-nagoya/ruri-v3-130m")
-    return _embed_model
 
 
 def _state_path(session_id: str) -> Path | None:
@@ -62,7 +52,6 @@ def _save_state(state_file: Path, state: dict) -> None:
 
 
 def _cleanup_stale_state_files() -> None:
-    """Remove state files older than 24 hours on each startup."""
     try:
         now = time.time()
         tmpdir = Path(tempfile.gettempdir())
@@ -76,96 +65,89 @@ def _cleanup_stale_state_files() -> None:
         pass
 
 
-def resolve_db_path() -> str:
-    env = os.environ.get("SUMMONAI_MEMORY_DB", "").strip()
-    if env:
-        return env
-    scripts_dir = Path(__file__).resolve().parent
-    repo_root = scripts_dir.parent.parent
-    return str(repo_root / ".data" / "summonai_memory.db")
+def _find_sockets() -> list[Path]:
+    """Return socket files sorted by mtime descending (most recently active first)."""
+    tmpdir = Path(tempfile.gettempdir())
+    socks = list(tmpdir.glob(SOCKET_GLOB))
+    socks.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
+    return socks
 
 
-def recall(prompt_text: str, session_id: str, db_path: str) -> list[tuple[int, str, float]]:
-    """Return list of (memory_id, content, similarity) for injection."""
-    import sqlite3
-    import sqlite_vec
+def _query_server(prompt_text: str) -> list[tuple[int, str, float]]:
+    """Send recall request to MCP server via Unix socket. Returns raw results."""
+    socks = _find_sockets()
+    if not socks:
+        return []
 
-    model = _get_model()
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.enable_load_extension(True)
-    sqlite_vec.load(conn)
-    conn.enable_load_extension(False)
+    request = (json.dumps({"prompt": prompt_text}, ensure_ascii=False) + "\n").encode("utf-8")
 
-    try:
-        emb = model.encode(prompt_text)
-        rows = conn.execute(
-            """
-            SELECT mv.memory_id, mv.distance
-            FROM memories_vec mv
-            JOIN memories m ON m.id = mv.memory_id
-            WHERE mv.embedding MATCH ? AND k = ?
-              AND m.memory_bucket IN ('knowledge', 'content')
-              AND m.valid_until IS NULL
-            """,
-            (emb.tobytes(), SEARCH_K),
-        ).fetchall()
+    for sock_path in socks:
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+                s.settimeout(SOCKET_TIMEOUT)
+                s.connect(str(sock_path))
+                s.sendall(request)
 
-        candidates = sorted(
-            [
-                (int(r["memory_id"]), 1.0 - float(r["distance"]))
-                for r in rows
-                if (1.0 - float(r["distance"])) > SIM_THRESHOLD
-            ],
-            key=lambda x: x[1],
-            reverse=True,
-        )[:TOP_K]
+                buf = b""
+                while b"\n" not in buf:
+                    chunk = s.recv(65536)
+                    if not chunk:
+                        break
+                    buf += chunk
 
-        # Dedup: skip memory_ids seen in the last WINDOW_SIZE turns
-        state_file = _state_path(session_id)
-        if state_file and state_file.exists():
-            state = _load_state(state_file)
-        else:
-            state = {"recent_ids": []}
+            line = buf.split(b"\n", 1)[0]
+            data = json.loads(line.decode("utf-8"))
+            results = [
+                (int(r[0]), str(r[1]), float(r[2]))
+                for r in data.get("results", [])
+            ]
+            return results
+        except Exception:
+            continue
 
-        recent_ids: set[int] = set()
-        for turn_ids in state.get("recent_ids", []):
-            if isinstance(turn_ids, list):
-                recent_ids.update(turn_ids)
-        candidates = [(mid, sim) for mid, sim in candidates if mid not in recent_ids]
+    return []
 
-        if not candidates:
-            return []
 
-        results: list[tuple[int, str, float]] = []
-        total_tokens = 0
-        for memory_id, similarity in candidates:
-            row = conn.execute(
-                "SELECT content FROM memories WHERE id = ?", (memory_id,)
-            ).fetchone()
-            if not row:
-                continue
-            content = row["content"]
-            tokens = _estimate_tokens(content)
-            if total_tokens + tokens > TOKEN_BUDGET:
-                break
-            results.append((memory_id, content, similarity))
-            total_tokens += tokens
+def recall(prompt_text: str, session_id: str) -> list[tuple[int, str, float]]:
+    """Return dedup-filtered list of (memory_id, content, similarity) for injection."""
+    raw = _query_server(prompt_text)
+    if not raw:
+        return []
 
-        # Persist dedup state
-        if results and state_file is not None:
-            this_turn_ids = [mid for mid, _, _ in results]
-            recent = state.get("recent_ids", [])
-            if not isinstance(recent, list):
-                recent = []
-            recent.append(this_turn_ids)
-            recent = recent[-WINDOW_SIZE:]
-            _save_state(state_file, {"recent_ids": recent})
+    # Apply dedup
+    state_file = _state_path(session_id)
+    if state_file and state_file.exists():
+        state = _load_state(state_file)
+    else:
+        state = {"recent_ids": []}
 
-        return results
+    recent_ids: set[int] = set()
+    for turn_ids in state.get("recent_ids", []):
+        if isinstance(turn_ids, list):
+            recent_ids.update(turn_ids)
 
-    finally:
-        conn.close()
+    candidates = [(mid, content, sim) for mid, content, sim in raw if mid not in recent_ids]
+
+    # Apply token budget
+    results: list[tuple[int, str, float]] = []
+    total_tokens = 0
+    for memory_id, content, similarity in candidates[:TOP_K]:
+        tokens = _estimate_tokens(content)
+        if total_tokens + tokens > TOKEN_BUDGET:
+            break
+        results.append((memory_id, content, similarity))
+        total_tokens += tokens
+
+    if results and state_file is not None:
+        this_turn_ids = [mid for mid, _, _ in results]
+        recent = state.get("recent_ids", [])
+        if not isinstance(recent, list):
+            recent = []
+        recent.append(this_turn_ids)
+        recent = recent[-WINDOW_SIZE:]
+        _save_state(state_file, {"recent_ids": recent})
+
+    return results
 
 
 def main() -> int:
@@ -189,10 +171,8 @@ def main() -> int:
         or ""
     ).strip()
 
-    db_path = resolve_db_path()
-
     try:
-        results = recall(prompt_text, session_id, db_path)
+        results = recall(prompt_text, session_id)
     except Exception as e:
         print(f"[RECALL_ERROR] {e}", file=sys.stderr)
         return 0
