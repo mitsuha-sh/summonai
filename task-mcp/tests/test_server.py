@@ -212,7 +212,7 @@ def test_task_create_starts_zellij_runner_and_persists_pane_id(
         (
             "summonai",
             "terminal_42",
-            f'start task_id="{created["task_id"]}"。'
+            f'start task_id="{created["task_id"]}"。\n'
             f'開始したら最初に task_update(task_id="{created["task_id"]}", status="in_progress") を呼べ。',
         ),
     ]
@@ -656,9 +656,9 @@ def test_task_resume_recreates_missing_pane(
         (
             "summonai",
             "terminal_42",
-            f'task_id="{task_id}" のタスクを再開せよ。'
-            f'task_get(task_id="{task_id}") で現在の要件を確認し、'
-            "まず git status と既存成果物を確認して不足分のみ実装せよ。"
+            f'task_id="{task_id}" のタスクを再開せよ。\n'
+            f'task_get(task_id="{task_id}") で現在の要件を確認し、\n'
+            "まず git status と既存成果物を確認して不足分のみ実装せよ。\n"
             "acceptance_criteria を満たしたら task_complete を呼べ。",
         ),
     ]
