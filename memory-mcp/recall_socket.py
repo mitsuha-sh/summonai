@@ -7,7 +7,13 @@ from pathlib import Path
 
 
 def _normalize_db_path(db_path: str) -> str:
-    return str(Path(db_path).expanduser().resolve())
+    expanded = Path(db_path).expanduser()
+    if not expanded.is_absolute():
+        raise ValueError(f"SUMMONAI_MEMORY_DB must be an absolute path: {db_path}")
+    normalized = expanded.resolve()
+    if not normalized.is_absolute():
+        raise ValueError(f"Failed to normalize SUMMONAI_MEMORY_DB as absolute path: {db_path}")
+    return str(normalized)
 
 
 def db_scope_hash(db_path: str) -> str:

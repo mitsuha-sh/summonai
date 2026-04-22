@@ -67,6 +67,10 @@ class TestHelpers(unittest.TestCase):
                     self.assertEqual(socket_glob(db_path), f"summonai_recall_{expected_hash}_*.sock")
                     self.assertEqual(hook._find_sockets(), [matching])
 
+    def test_db_scope_hash_rejects_relative_path(self):
+        with self.assertRaises(ValueError):
+            db_scope_hash("relative/path/to/summonai_memory.db")
+
 
 # ---------------------------------------------------------------------------
 # Unit tests: state file
