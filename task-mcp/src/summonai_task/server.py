@@ -273,16 +273,16 @@ def _active_pane_ids(session: str) -> set[str]:
 
 def _executor_start_prompt(task_id: str) -> str:
     return (
-        f'start task_id="{task_id}"。'
+        f'start task_id="{task_id}"。\n'
         f'開始したら最初に task_update(task_id="{task_id}", status="in_progress") を呼べ。'
     )
 
 
 def _executor_resume_prompt(task_id: str) -> str:
     return (
-        f'task_id="{task_id}" のタスクを再開せよ。'
-        f'task_get(task_id="{task_id}") で現在の要件を確認し、'
-        "まず git status と既存成果物を確認して不足分のみ実装せよ。"
+        f'task_id="{task_id}" のタスクを再開せよ。\n'
+        f'task_get(task_id="{task_id}") で現在の要件を確認し、\n'
+        "まず git status と既存成果物を確認して不足分のみ実装せよ。\n"
         "acceptance_criteria を満たしたら task_complete を呼べ。"
     )
 
