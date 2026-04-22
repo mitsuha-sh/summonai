@@ -145,8 +145,8 @@ def send_text(session: str, pane_id: str, text: str) -> None:
 
 
 def send_enter(session: str, pane_id: str) -> None:
-    """Send Enter key via carriage-return keycode."""
-    _run_zellij(session, ["write", "13", "--pane-id", pane_id])
+    """Send Enter key event to a pane."""
+    _run_zellij(session, ["send-keys", "--pane-id", pane_id, "Enter"])
 
 
 def read_output(session: str, pane_id: str, lines: int = 100) -> str:

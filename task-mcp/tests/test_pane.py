@@ -152,7 +152,7 @@ def test_send_text_writes_payload_and_enter() -> None:
                 check=True,
             ),
             call(
-                ["zellij", "--session", "summonai", "action", "write", "13", "--pane-id", "2"],
+                ["zellij", "--session", "summonai", "action", "send-keys", "--pane-id", "2", "Enter"],
                 capture_output=True,
                 text=True,
                 check=True,
