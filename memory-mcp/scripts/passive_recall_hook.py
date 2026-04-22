@@ -16,13 +16,23 @@ import tempfile
 import time
 from pathlib import Path
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from recall_socket import socket_glob
+
 WINDOW_SIZE = 5       # sliding window: last N turns for dedup
 TOP_K = 3             # max memories to inject
 TOKEN_BUDGET = 500    # max total tokens
 SIM_THRESHOLD = 0.65  # keep in sync with server.py _RECALL_SIM_THRESHOLD
 
-SOCKET_GLOB = "summonai_recall_*.sock"
 SOCKET_TIMEOUT = 2.0  # seconds per socket attempt
+
+
+def _memory_db_path() -> str:
+    default_db = ROOT_DIR / "db" / "summonai_memory.db"
+    return os.environ.get("SUMMONAI_MEMORY_DB", str(default_db))
 
 
 def _estimate_tokens(text: str) -> int:
@@ -68,7 +78,7 @@ def _cleanup_stale_state_files() -> None:
 def _find_sockets() -> list[Path]:
     """Return socket files sorted by mtime descending (most recently active first)."""
     tmpdir = Path(tempfile.gettempdir())
-    socks = list(tmpdir.glob(SOCKET_GLOB))
+    socks = list(tmpdir.glob(socket_glob(_memory_db_path())))
     socks.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
     return socks
 
@@ -111,10 +121,6 @@ def _query_server(prompt_text: str) -> list[tuple[int, str, float]]:
 def recall(prompt_text: str, session_id: str) -> list[tuple[int, str, float]]:
     """Return dedup-filtered list of (memory_id, content, similarity) for injection."""
     raw = _query_server(prompt_text)
-    if not raw:
-        return []
-
-    # Apply dedup
     state_file = _state_path(session_id)
     if state_file and state_file.exists():
         state = _load_state(state_file)
@@ -134,11 +140,11 @@ def recall(prompt_text: str, session_id: str) -> list[tuple[int, str, float]]:
     for memory_id, content, similarity in candidates[:TOP_K]:
         tokens = _estimate_tokens(content)
         if total_tokens + tokens > TOKEN_BUDGET:
-            break
+            continue
         results.append((memory_id, content, similarity))
         total_tokens += tokens
 
-    if results and state_file is not None:
+    if state_file is not None:
         this_turn_ids = [mid for mid, _, _ in results]
         recent = state.get("recent_ids", [])
         if not isinstance(recent, list):

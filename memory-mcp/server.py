@@ -34,6 +34,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from hook_context import resolve_agent_id, resolve_scope  # noqa: E402
+from recall_socket import socket_filename  # noqa: E402
 
 # Database path: env var or default
 DEFAULT_DB_PATH = os.environ.get(
@@ -1657,11 +1658,12 @@ def conversation_load_recent(
 # Passive Recall Socket Server
 # ============================================================
 
-_RECALL_SOCKET_PATH = Path(tempfile.gettempdir()) / f"summonai_recall_{os.getpid()}.sock"
+_RECALL_SOCKET_PATH = Path(tempfile.gettempdir()) / socket_filename(_get_db_path(), os.getpid())
 _RECALL_SIM_THRESHOLD = 0.65
 _RECALL_TOP_K = 3
 _RECALL_TOKEN_BUDGET = 500
 _RECALL_SEARCH_K = 8
+_RECALL_CONN_TIMEOUT = 2.0
 
 
 def _recall_search(prompt_text: str) -> list[tuple[int, str, float]]:
@@ -1715,7 +1717,7 @@ def _recall_search(prompt_text: str) -> list[tuple[int, str, float]]:
             content = row["content"]
             tokens = len(content) // 4
             if total_tokens + tokens > _RECALL_TOKEN_BUDGET:
-                break
+                continue
             results.append((memory_id, content, similarity))
             total_tokens += tokens
         return results
@@ -1726,6 +1728,7 @@ def _recall_search(prompt_text: str) -> list[tuple[int, str, float]]:
 def _handle_recall_connection(conn_sock: socket.socket) -> None:
     """Handle one recall request over a Unix socket connection."""
     try:
+        conn_sock.settimeout(_RECALL_CONN_TIMEOUT)
         buf = b""
         while b"\n" not in buf:
             chunk = conn_sock.recv(4096)
@@ -1774,7 +1777,7 @@ def _recall_socket_server_loop() -> None:
                     )
                     t.start()
                 except Exception:
-                    break
+                    continue
     except Exception:
         pass
 

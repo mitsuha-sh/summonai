@@ -23,10 +23,13 @@ from unittest import mock
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import passive_recall_hook as hook
+from recall_socket import db_scope_hash, socket_glob
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +53,23 @@ class TestHelpers(unittest.TestCase):
     def test_state_path_unknown_returns_none(self):
         self.assertIsNone(hook._state_path(""))
         self.assertIsNone(hook._state_path("unknown"))
+
+    def test_socket_glob_uses_db_scope_hash(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = "/tmp/project-a/summonai_memory.db"
+            expected_hash = db_scope_hash(db_path)
+            matching = Path(tmpdir) / f"summonai_recall_{expected_hash}_100.sock"
+            other = Path(tmpdir) / "summonai_recall_deadbeef0000_101.sock"
+            matching.touch()
+            other.touch()
+            with mock.patch.dict("os.environ", {"SUMMONAI_MEMORY_DB": db_path}, clear=False):
+                with mock.patch("tempfile.gettempdir", return_value=tmpdir):
+                    self.assertEqual(socket_glob(db_path), f"summonai_recall_{expected_hash}_*.sock")
+                    self.assertEqual(hook._find_sockets(), [matching])
+
+    def test_db_scope_hash_rejects_relative_path(self):
+        with self.assertRaises(ValueError):
+            db_scope_hash("relative/path/to/summonai_memory.db")
 
 
 # ---------------------------------------------------------------------------
@@ -195,11 +215,18 @@ class TestRecallDedup(unittest.TestCase):
         long_content = "x" * 2001  # 500 tokens
         with mock.patch.object(
             hook, "_query_server", return_value=[(1, long_content, 0.9), (2, "short", 0.8)]
-        ):
+        ), mock.patch.object(hook, "_state_path", return_value=None):
             results = hook.recall("query", "budget_session")
-        # First entry alone exceeds budget, so only it (or nothing if it busts) is returned
         total = sum(hook._estimate_tokens(c) for _, c, _ in results)
         self.assertLessEqual(total, hook.TOKEN_BUDGET)
+
+    def test_token_budget_skips_long_candidate_and_keeps_later_short_one(self):
+        too_long = "x" * 2101  # 525 tokens
+        with mock.patch.object(
+            hook, "_query_server", return_value=[(1, too_long, 0.9), (2, "short", 0.8)]
+        ), mock.patch.object(hook, "_state_path", return_value=None):
+            results = hook.recall("query", "budget_skip_session")
+        self.assertEqual([r[0] for r in results], [2])
 
     def test_sliding_window_persists(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -215,6 +242,20 @@ class TestRecallDedup(unittest.TestCase):
             real_state_file = Path(tmpdir) / state_file.name
             state = hook._load_state(real_state_file)
             self.assertIn([99], state["recent_ids"])
+
+    def test_sliding_window_advances_with_empty_turn(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_id = "empty_turn_session"
+            state_file = Path(tmpdir) / f"summonai_passive_recall_{session_id}.json"
+            hook._save_state(state_file, {"recent_ids": [[7], [8], [9], [10], [11]]})
+
+            with mock.patch("tempfile.gettempdir", return_value=tmpdir):
+                with mock.patch.object(hook, "_query_server", return_value=[]):
+                    results = hook.recall("query", session_id)
+            self.assertEqual(results, [])
+
+            updated = hook._load_state(state_file)
+            self.assertEqual(updated["recent_ids"], [[8], [9], [10], [11], []])
 
 
 # ---------------------------------------------------------------------------
