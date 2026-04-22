@@ -1662,7 +1662,7 @@ _RECALL_SOCKET_PATH = Path(tempfile.gettempdir()) / socket_filename(_get_db_path
 _RECALL_SIM_THRESHOLD = 0.65
 _RECALL_TOP_K = 3
 _RECALL_TOKEN_BUDGET = 500
-_RECALL_SEARCH_K = 8
+_RECALL_SEARCH_K = 20
 _RECALL_CONN_TIMEOUT = 2.0
 
 
@@ -1672,6 +1672,7 @@ def _recall_search(prompt_text: str) -> list[tuple[int, str, float]]:
     try:
         emb = _embed_model.encode(prompt_text)
         emb_norm = emb / np.linalg.norm(emb)
+        now = datetime.now(timezone.utc)
 
         # KNN by L2 distance to get candidate IDs (vec0 default metric)
         rows = conn.execute(
@@ -1687,7 +1688,7 @@ def _recall_search(prompt_text: str) -> list[tuple[int, str, float]]:
         ).fetchall()
 
         # Compute cosine similarity manually (stored vecs are not normalized)
-        candidates: list[tuple[int, float]] = []
+        candidates: list[tuple[int, float, float]] = []
         for r in rows:
             mid = int(r["memory_id"])
             vec_row = conn.execute(
@@ -1701,14 +1702,33 @@ def _recall_search(prompt_text: str) -> list[tuple[int, str, float]]:
                 continue
             sim = float(np.dot(emb_norm, stored / stored_n))
             if sim > _RECALL_SIM_THRESHOLD:
-                candidates.append((mid, sim))
+                memory_row = conn.execute(
+                    """
+                    SELECT content, importance, confidence, access_count, recall_count,
+                           emotional_impact, last_accessed_at, created_at
+                    FROM memories
+                    WHERE id = ?
+                    """,
+                    (mid,),
+                ).fetchone()
+                if not memory_row:
+                    continue
+                ranked_score = _memory_ranked_score(memory_row)
+                temporal_score = _memory_recency_score(
+                    memory_row["last_accessed_at"],
+                    memory_row["created_at"],
+                    now,
+                )
+                impact_score = _memory_impact_score(memory_row)
+                rank_multiplier = 1 + 0.30 * ranked_score + 0.18 * temporal_score + 0.12 * impact_score
+                candidates.append((mid, sim, sim * rank_multiplier))
 
-        candidates.sort(key=lambda x: x[1], reverse=True)
+        candidates.sort(key=lambda x: x[2], reverse=True)
         candidates = candidates[:_RECALL_TOP_K]
 
         results: list[tuple[int, str, float]] = []
         total_tokens = 0
-        for memory_id, similarity in candidates:
+        for memory_id, similarity, _ in candidates:
             row = conn.execute(
                 "SELECT content FROM memories WHERE id = ?", (memory_id,)
             ).fetchone()

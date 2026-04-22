@@ -881,6 +881,112 @@ assistant: old chunk must disappear
         self.assertIsNotNone(stored)
         self.assertEqual(stored[0], multiline)
 
+    def test_recall_search_tri_rerank_changes_order(self):
+        prompt_vec = self.server.np.array([1.0, 0.0], dtype=self.server.np.float32)
+
+        def _vec(x: float, y: float) -> bytes:
+            return self.server.np.array([x, y], dtype=self.server.np.float32).tobytes()
+
+        embeddings = {
+            1: _vec(0.92, 0.39191836),   # A: high sim + fresh + high rank
+            2: _vec(0.95, 0.31224990),   # B: high sim + stale + low rank
+            3: _vec(0.80, 0.60000000),   # C: mid sim + fresh + high rank
+            4: _vec(0.82, 0.57236352),   # D: mid sim + stale + low rank
+        }
+
+        now = datetime.now()
+        fresh = now.isoformat(timespec="seconds")
+        stale = (now - timedelta(days=365)).isoformat(timespec="seconds")
+
+        memory_rows = {
+            1: {
+                "content": "A",
+                "importance": 9,
+                "confidence": 0.95,
+                "access_count": 10,
+                "recall_count": 10,
+                "emotional_impact": 9.0,
+                "last_accessed_at": fresh,
+                "created_at": fresh,
+            },
+            2: {
+                "content": "B",
+                "importance": 2,
+                "confidence": 0.30,
+                "access_count": 0,
+                "recall_count": 0,
+                "emotional_impact": 0.0,
+                "last_accessed_at": stale,
+                "created_at": stale,
+            },
+            3: {
+                "content": "C",
+                "importance": 9,
+                "confidence": 0.95,
+                "access_count": 10,
+                "recall_count": 10,
+                "emotional_impact": 9.0,
+                "last_accessed_at": fresh,
+                "created_at": fresh,
+            },
+            4: {
+                "content": "D",
+                "importance": 2,
+                "confidence": 0.30,
+                "access_count": 0,
+                "recall_count": 0,
+                "emotional_impact": 0.0,
+                "last_accessed_at": stale,
+                "created_at": stale,
+            },
+        }
+
+        class _FakeCursor:
+            def __init__(self, rows):
+                self._rows = rows
+
+            def fetchall(self):
+                return self._rows
+
+            def fetchone(self):
+                return self._rows[0] if self._rows else None
+
+        class _FakeConn:
+            def execute(self, sql, params=()):
+                if "FROM memories_vec mv" in sql:
+                    return _FakeCursor([{"memory_id": 1}, {"memory_id": 2}, {"memory_id": 3}, {"memory_id": 4}])
+                if "SELECT embedding FROM memories_vec" in sql:
+                    memory_id = int(params[0])
+                    return _FakeCursor([{"embedding": embeddings[memory_id]}])
+                if "SELECT content, importance, confidence, access_count, recall_count" in sql:
+                    memory_id = int(params[0])
+                    return _FakeCursor([memory_rows[memory_id]])
+                if "SELECT content FROM memories" in sql:
+                    memory_id = int(params[0])
+                    return _FakeCursor([{"content": memory_rows[memory_id]["content"]}])
+                raise AssertionError(f"unexpected query: {sql}")
+
+            def close(self):
+                return None
+
+        with mock.patch.object(self.server, "get_db", return_value=_FakeConn()), \
+             mock.patch.object(self.server, "_embed_model") as mock_model, \
+             mock.patch.object(self.server, "_RECALL_TOP_K", 4), \
+             mock.patch.object(self.server, "_RECALL_TOKEN_BUDGET", 10_000):
+            mock_model.encode.return_value = prompt_vec
+            results = self.server._recall_search("tri recall ranking")
+
+        tri_order = [memory_id for memory_id, _, _ in results]
+        self.assertEqual(tri_order, [1, 3, 2, 4])
+
+        similarity_only_order = sorted(
+            [1, 2, 3, 4],
+            key=lambda mid: float(self.server.np.dot(prompt_vec, self.server.np.frombuffer(embeddings[mid], dtype=self.server.np.float32))),
+            reverse=True,
+        )
+        self.assertEqual(similarity_only_order, [2, 1, 4, 3])
+        self.assertNotEqual(tri_order, similarity_only_order)
+
     def test_memory_load_returns_min_fields_and_normalizes_newlines_in_response_only(self):
         multiline = "load line1\nload line2"
         self.server.memory_save(
