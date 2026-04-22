@@ -24,6 +24,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 import sqlite_vec
 from mcp.server.fastmcp import FastMCP
 from sentence_transformers import SentenceTransformer
@@ -1664,13 +1665,16 @@ _RECALL_SEARCH_K = 8
 
 
 def _recall_search(prompt_text: str) -> list[tuple[int, str, float]]:
-    """Search memories_vec for relevant memories using the loaded model."""
+    """Search memories_vec for relevant memories using cosine similarity."""
     conn = get_db()
     try:
         emb = _embed_model.encode(prompt_text)
+        emb_norm = emb / np.linalg.norm(emb)
+
+        # KNN by L2 distance to get candidate IDs (vec0 default metric)
         rows = conn.execute(
             """
-            SELECT mv.memory_id, mv.distance
+            SELECT mv.memory_id
             FROM memories_vec mv
             JOIN memories m ON m.id = mv.memory_id
             WHERE mv.embedding MATCH ? AND k = ?
@@ -1679,15 +1683,26 @@ def _recall_search(prompt_text: str) -> list[tuple[int, str, float]]:
             """,
             (emb.tobytes(), _RECALL_SEARCH_K),
         ).fetchall()
-        candidates = sorted(
-            [
-                (int(r["memory_id"]), 1.0 - float(r["distance"]))
-                for r in rows
-                if (1.0 - float(r["distance"])) > _RECALL_SIM_THRESHOLD
-            ],
-            key=lambda x: x[1],
-            reverse=True,
-        )[:_RECALL_TOP_K]
+
+        # Compute cosine similarity manually (stored vecs are not normalized)
+        candidates: list[tuple[int, float]] = []
+        for r in rows:
+            mid = int(r["memory_id"])
+            vec_row = conn.execute(
+                "SELECT embedding FROM memories_vec WHERE memory_id = ?", (mid,)
+            ).fetchone()
+            if not vec_row:
+                continue
+            stored = np.frombuffer(bytes(vec_row["embedding"]), dtype=np.float32)
+            stored_n = np.linalg.norm(stored)
+            if stored_n == 0:
+                continue
+            sim = float(np.dot(emb_norm, stored / stored_n))
+            if sim > _RECALL_SIM_THRESHOLD:
+                candidates.append((mid, sim))
+
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        candidates = candidates[:_RECALL_TOP_K]
 
         results: list[tuple[int, str, float]] = []
         total_tokens = 0
