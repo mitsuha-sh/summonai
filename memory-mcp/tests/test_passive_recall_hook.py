@@ -151,11 +151,11 @@ class TestMainParsing(unittest.TestCase):
     def test_short_prompt_produces_no_output(self):
         payload = {"prompt": "short", "session_id": "sess1"}
         with mock.patch("sys.stdin", io.StringIO(json.dumps(payload))):
-            with mock.patch.object(hook, "_query_server", return_value=[(1, "m", 0.9)]) as mock_qs:
+            with mock.patch.object(hook, "_find_sockets") as mock_find:
                 with mock.patch("builtins.print") as mock_print:
                     rc = hook.main()
         self.assertEqual(rc, 0)
-        mock_qs.assert_called_once_with("short")
+        mock_find.assert_not_called()
         mock_print.assert_not_called()
 
     def test_recall_output_format(self):
