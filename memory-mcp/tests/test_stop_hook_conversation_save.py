@@ -20,7 +20,7 @@ import stop_hook_conversation_save  # noqa: E402
 
 
 class StopHookConversationSaveTest(unittest.TestCase):
-    def test_main_defaults_agent_id_to_default_when_unset(self):
+    def test_main_defaults_agent_id_to_summonai_when_unset(self):
         payload = {"transcript": "assistant: hello"}
 
         with mock.patch.dict("os.environ", {}, clear=True):
@@ -45,7 +45,7 @@ class StopHookConversationSaveTest(unittest.TestCase):
 
         self.assertEqual(rc, 0)
         self.assertEqual(stdout.getvalue().strip(), "saved")
-        self.assertEqual(save_mock.call_args.kwargs["agent_id"], "default")
+        self.assertEqual(save_mock.call_args.kwargs["agent_id"], "summonai")
 
     def test_main_uses_agent_id_from_runtime_config(self):
         payload = {"transcript": "assistant: hello"}

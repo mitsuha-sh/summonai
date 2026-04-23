@@ -29,10 +29,10 @@ class SessionStartMemoryContextTest(unittest.TestCase):
         with mock.patch.dict("os.environ", env, clear=True):
             self.assertEqual(session_start_memory_context.resolve_agent_id(payload), "coordinator")
 
-    def test_resolve_agent_id_defaults_to_default_outside_tmux(self):
+    def test_resolve_agent_id_defaults_to_summonai_outside_tmux(self):
         payload = {}
         with mock.patch.dict("os.environ", {}, clear=True):
-            self.assertEqual(session_start_memory_context.resolve_agent_id(payload), "default")
+            self.assertEqual(session_start_memory_context.resolve_agent_id(payload), "summonai")
 
     def test_resolve_role_and_task_id_without_zellij_pane_id_uses_env_fallback(self):
         env = {"SUMMONAI_ROLE": "interface", "SUMMONAI_TASK_ID": "task_from_env"}
