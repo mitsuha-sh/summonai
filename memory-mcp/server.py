@@ -1662,15 +1662,19 @@ def conversation_load_recent(
 # ============================================================
 
 _RECALL_SOCKET_PATH = Path(tempfile.gettempdir()) / socket_filename(_get_db_path(), os.getpid())
-_RECALL_SIM_THRESHOLD = 0.65
+_RECALL_SIM_THRESHOLD = 0.82
 _RECALL_TOP_K = 3
 _RECALL_TOKEN_BUDGET = 500
 _RECALL_SEARCH_K = 20
 _RECALL_CONN_TIMEOUT = 2.0
+_RECALL_MIN_PROMPT_CHARS = 10
 
 
 def _recall_search(prompt_text: str) -> list[tuple[int, str, float]]:
     """Search memories_vec for relevant memories using cosine similarity."""
+    if len(prompt_text) <= _RECALL_MIN_PROMPT_CHARS:
+        return []
+
     conn = get_db()
     try:
         emb = _embed_model.encode(prompt_text)

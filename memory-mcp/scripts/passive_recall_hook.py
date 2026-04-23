@@ -25,7 +25,8 @@ from recall_socket import socket_glob
 WINDOW_SIZE = 5       # sliding window: last N turns for dedup
 TOP_K = 3             # max memories to inject
 TOKEN_BUDGET = 500    # max total tokens
-SIM_THRESHOLD = 0.65  # keep in sync with server.py _RECALL_SIM_THRESHOLD
+SIM_THRESHOLD = 0.82  # keep in sync with server.py _RECALL_SIM_THRESHOLD
+MIN_PROMPT_CHARS = 10
 
 SOCKET_TIMEOUT = 2.0  # seconds per socket attempt
 
@@ -85,6 +86,9 @@ def _find_sockets() -> list[Path]:
 
 def _query_server(prompt_text: str) -> list[tuple[int, str, float]]:
     """Send recall request to MCP server via Unix socket. Returns raw results."""
+    if len(prompt_text) <= MIN_PROMPT_CHARS:
+        return []
+
     socks = _find_sockets()
     if not socks:
         return []

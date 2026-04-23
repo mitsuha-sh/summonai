@@ -138,7 +138,7 @@ class TestMainParsing(unittest.TestCase):
         self.assertEqual(rc, 0)
 
     def test_valid_payload_calls_query_server(self):
-        payload = {"prompt": "test query", "session_id": "sess1"}
+        payload = {"prompt": "test query long", "session_id": "sess1"}
         with mock.patch("sys.stdin", io.StringIO(json.dumps(payload))):
             with mock.patch.object(
                 hook, "_query_server", return_value=[(42, "memory content", 0.85)]
@@ -146,10 +146,20 @@ class TestMainParsing(unittest.TestCase):
                 with mock.patch("builtins.print"):
                     rc = hook.main()
         self.assertEqual(rc, 0)
-        mock_qs.assert_called_once_with("test query")
+        mock_qs.assert_called_once_with("test query long")
+
+    def test_short_prompt_produces_no_output(self):
+        payload = {"prompt": "short", "session_id": "sess1"}
+        with mock.patch("sys.stdin", io.StringIO(json.dumps(payload))):
+            with mock.patch.object(hook, "_query_server", return_value=[(1, "m", 0.9)]) as mock_qs:
+                with mock.patch("builtins.print") as mock_print:
+                    rc = hook.main()
+        self.assertEqual(rc, 0)
+        mock_qs.assert_called_once_with("short")
+        mock_print.assert_not_called()
 
     def test_recall_output_format(self):
-        payload = {"prompt": "hello", "session_id": "s1"}
+        payload = {"prompt": "hello world now", "session_id": "s1"}
         _, output = self._run_main(
             json.dumps(payload),
             server_results=[(7, "content text", 0.75)],
@@ -160,7 +170,7 @@ class TestMainParsing(unittest.TestCase):
         self.assertIn("content text", output)
 
     def test_empty_server_results_no_output(self):
-        payload = {"prompt": "hello", "session_id": "s1"}
+        payload = {"prompt": "hello world now", "session_id": "s1"}
         with mock.patch("sys.stdin", io.StringIO(json.dumps(payload))):
             with mock.patch.object(hook, "_query_server", return_value=[]):
                 with mock.patch("builtins.print") as mock_print:
@@ -169,7 +179,7 @@ class TestMainParsing(unittest.TestCase):
         mock_print.assert_not_called()
 
     def test_query_server_exception_returns_0(self):
-        payload = {"prompt": "hello", "session_id": "s1"}
+        payload = {"prompt": "hello world now", "session_id": "s1"}
         with mock.patch("sys.stdin", io.StringIO(json.dumps(payload))):
             with mock.patch.object(hook, "_query_server", side_effect=RuntimeError("boom")):
                 with mock.patch("builtins.print"):
@@ -193,7 +203,7 @@ class TestRecallDedup(unittest.TestCase):
             ), mock.patch.object(
                 hook, "_query_server", return_value=[(7, "already seen", 0.9)]
             ):
-                results = hook.recall("any query", session_id)
+                results = hook.recall("any query text", session_id)
             self.assertEqual(results, [])
 
     def test_dedup_allows_unseen_ids(self):
@@ -207,7 +217,7 @@ class TestRecallDedup(unittest.TestCase):
             ), mock.patch.object(
                 hook, "_query_server", return_value=[(42, "new memory", 0.9)]
             ):
-                results = hook.recall("any query", session_id)
+                results = hook.recall("any query text", session_id)
             self.assertEqual(len(results), 1)
             self.assertEqual(results[0][0], 42)
 
@@ -216,7 +226,7 @@ class TestRecallDedup(unittest.TestCase):
         with mock.patch.object(
             hook, "_query_server", return_value=[(1, long_content, 0.9), (2, "short", 0.8)]
         ), mock.patch.object(hook, "_state_path", return_value=None):
-            results = hook.recall("query", "budget_session")
+            results = hook.recall("query token budget", "budget_session")
         total = sum(hook._estimate_tokens(c) for _, c, _ in results)
         self.assertLessEqual(total, hook.TOKEN_BUDGET)
 
@@ -225,7 +235,7 @@ class TestRecallDedup(unittest.TestCase):
         with mock.patch.object(
             hook, "_query_server", return_value=[(1, too_long, 0.9), (2, "short", 0.8)]
         ), mock.patch.object(hook, "_state_path", return_value=None):
-            results = hook.recall("query", "budget_skip_session")
+            results = hook.recall("query token budget", "budget_skip_session")
         self.assertEqual([r[0] for r in results], [2])
 
     def test_sliding_window_persists(self):
@@ -236,7 +246,7 @@ class TestRecallDedup(unittest.TestCase):
             ), mock.patch.object(
                 hook, "_query_server", return_value=[(99, "memory", 0.9)]
             ):
-                hook.recall("query", session_id)
+                hook.recall("query with enough length", session_id)
                 state_file = hook._state_path(session_id)
             assert state_file is not None
             real_state_file = Path(tmpdir) / state_file.name
@@ -251,7 +261,7 @@ class TestRecallDedup(unittest.TestCase):
 
             with mock.patch("tempfile.gettempdir", return_value=tmpdir):
                 with mock.patch.object(hook, "_query_server", return_value=[]):
-                    results = hook.recall("query", session_id)
+                    results = hook.recall("query with enough length", session_id)
             self.assertEqual(results, [])
 
             updated = hook._load_state(state_file)
@@ -333,6 +343,12 @@ class TestSocketIntegration(unittest.TestCase):
             results = hook._query_server("test prompt")
         self.assertEqual(results, [])
 
+    def test_query_server_short_prompt_returns_empty(self):
+        with mock.patch.object(hook, "_find_sockets") as mock_find:
+            results = hook._query_server("short")
+        self.assertEqual(results, [])
+        mock_find.assert_not_called()
+
     def test_query_server_falls_back_on_bad_socket(self):
         """First socket doesn't exist; second socket works."""
         bad_path = Path(self.tmpdir) / "summonai_recall_bad.sock"  # doesn't exist
@@ -341,7 +357,7 @@ class TestSocketIntegration(unittest.TestCase):
         time.sleep(0.05)
 
         with mock.patch.object(hook, "_find_sockets", return_value=[bad_path, Path(good_path)]):
-            results = hook._query_server("prompt")
+            results = hook._query_server("prompt with enough length")
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0][0], 5)
 
@@ -370,7 +386,7 @@ class TestSocketIntegration(unittest.TestCase):
         _start_mock_socket_server(sock_path, [{"results": [[3, "e2e content", 0.77]]}])
         time.sleep(0.05)
 
-        payload = json.dumps({"prompt": "end to end", "session_id": "e2e_sess"})
+        payload = json.dumps({"prompt": "end to end hook", "session_id": "e2e_sess"})
         captured = []
         with mock.patch("sys.stdin", io.StringIO(payload)), \
              mock.patch("builtins.print", side_effect=lambda *a, **kw: captured.append(a)), \
