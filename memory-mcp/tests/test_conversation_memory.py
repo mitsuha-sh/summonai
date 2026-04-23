@@ -881,6 +881,14 @@ assistant: old chunk must disappear
         self.assertIsNotNone(stored)
         self.assertEqual(stored[0], multiline)
 
+    def test_recall_search_short_prompt_returns_empty(self):
+        with mock.patch.object(self.server, "get_db") as mock_get_db, \
+             mock.patch.object(self.server, "_embed_model") as mock_model:
+            results = self.server._recall_search("too short")
+        self.assertEqual(results, [])
+        mock_get_db.assert_not_called()
+        mock_model.encode.assert_not_called()
+
     def test_recall_search_tri_rerank_changes_order(self):
         prompt_vec = self.server.np.array([1.0, 0.0], dtype=self.server.np.float32)
 
@@ -972,7 +980,8 @@ assistant: old chunk must disappear
         with mock.patch.object(self.server, "get_db", return_value=_FakeConn()), \
              mock.patch.object(self.server, "_embed_model") as mock_model, \
              mock.patch.object(self.server, "_RECALL_TOP_K", 4), \
-             mock.patch.object(self.server, "_RECALL_TOKEN_BUDGET", 10_000):
+             mock.patch.object(self.server, "_RECALL_TOKEN_BUDGET", 10_000), \
+             mock.patch.object(self.server, "_RECALL_SIM_THRESHOLD", 0.1):
             mock_model.encode.return_value = prompt_vec
             results = self.server._recall_search("tri recall ranking")
 
