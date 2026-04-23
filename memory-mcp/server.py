@@ -572,6 +572,29 @@ def _memory_ranked_score(row: sqlite3.Row) -> float:
 def _memory_impact_score(row: sqlite3.Row) -> float:
     return _clamp(abs(float(row["emotional_impact"] or 0.0)) / 10.0, 0.0, 1.0)
 
+
+def _compute_rank_multiplier(
+    row: sqlite3.Row,
+    now: datetime,
+    include_future: bool = True,
+) -> float:
+    validity_score = _memory_validity_score(
+        row["valid_from"] if "valid_from" in row.keys() else None,
+        row["valid_until"] if "valid_until" in row.keys() else None,
+        now,
+        include_future=include_future,
+    )
+    recency_score = _memory_recency_score(
+        row["last_accessed_at"] if "last_accessed_at" in row.keys() else None,
+        row["created_at"] if "created_at" in row.keys() else None,
+        now,
+    )
+    temporal_score = 0.7 * validity_score + 0.3 * recency_score
+    ranked_score = _memory_ranked_score(row)
+    impact_score = _memory_impact_score(row)
+    return 1 + 0.30 * ranked_score + 0.18 * temporal_score + 0.12 * impact_score
+
+
 def _normalize_relation_type(relation_type: str) -> str:
     normalized = (relation_type or "").strip().lower()
     if normalized not in _MEMORY_LINK_RELATION_TYPES:
@@ -1016,21 +1039,11 @@ def memory_search(
             lexical_score = lexical_scores.get(memory_id, 0.0)
             semantic_score = semantic_scores.get(memory_id, 0.0)
             base_score = 0.55 * lexical_score + 0.45 * semantic_score
-            validity_score = _memory_validity_score(
-                row["valid_from"] if "valid_from" in row.keys() else None,
-                row["valid_until"],
+            rank_multiplier = _compute_rank_multiplier(
+                row,
                 now,
                 include_future=include_future,
             )
-            recency_score = _memory_recency_score(
-                row["last_accessed_at"] if "last_accessed_at" in row.keys() else None,
-                row["created_at"],
-                now,
-            )
-            temporal_score = 0.7 * validity_score + 0.3 * recency_score
-            ranked_score = _memory_ranked_score(row)
-            impact_score = _memory_impact_score(row)
-            rank_multiplier = 1 + 0.30 * ranked_score + 0.18 * temporal_score + 0.12 * impact_score
             bucket_multiplier = _BUCKET_MULTIPLIER.get(row["memory_bucket"] or "knowledge", 1.0)
             base_scores[memory_id] = base_score
             tri_core_scores[memory_id] = base_score * rank_multiplier * bucket_multiplier
@@ -1069,21 +1082,11 @@ def memory_search(
                         lexical_score = lexical_scores.get(target_id, 0.0)
                         semantic_score = semantic_scores.get(target_id, 0.0)
                         base_score = 0.55 * lexical_score + 0.45 * semantic_score
-                        validity_score = _memory_validity_score(
-                            row["valid_from"] if "valid_from" in row.keys() else None,
-                            row["valid_until"],
+                        rank_multiplier = _compute_rank_multiplier(
+                            row,
                             now,
                             include_future=include_future,
                         )
-                        recency_score = _memory_recency_score(
-                            row["last_accessed_at"] if "last_accessed_at" in row.keys() else None,
-                            row["created_at"],
-                            now,
-                        )
-                        temporal_score = 0.7 * validity_score + 0.3 * recency_score
-                        ranked_score = _memory_ranked_score(row)
-                        impact_score = _memory_impact_score(row)
-                        rank_multiplier = 1 + 0.30 * ranked_score + 0.18 * temporal_score + 0.12 * impact_score
                         bucket_multiplier = _BUCKET_MULTIPLIER.get(row["memory_bucket"] or "knowledge", 1.0)
                         base_scores[target_id] = base_score
                         tri_core_scores[target_id] = base_score * rank_multiplier * bucket_multiplier
@@ -1713,14 +1716,7 @@ def _recall_search(prompt_text: str) -> list[tuple[int, str, float]]:
                 ).fetchone()
                 if not memory_row:
                     continue
-                ranked_score = _memory_ranked_score(memory_row)
-                temporal_score = _memory_recency_score(
-                    memory_row["last_accessed_at"],
-                    memory_row["created_at"],
-                    now,
-                )
-                impact_score = _memory_impact_score(memory_row)
-                rank_multiplier = 1 + 0.30 * ranked_score + 0.18 * temporal_score + 0.12 * impact_score
+                rank_multiplier = _compute_rank_multiplier(memory_row, now)
                 candidates.append((mid, sim, sim * rank_multiplier))
 
         candidates.sort(key=lambda x: x[2], reverse=True)
