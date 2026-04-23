@@ -987,6 +987,114 @@ assistant: old chunk must disappear
         self.assertEqual(similarity_only_order, [2, 1, 4, 3])
         self.assertNotEqual(tri_order, similarity_only_order)
 
+    def test_rank_multiplier_matches_between_memory_search_and_recall_search(self):
+        content = "tri multiplier parity anchor"
+        self.server.memory_save(
+            content=content,
+            memory_type="semantic",
+            memory_bucket="knowledge",
+            category="test",
+            source_agent="worker6",
+            tags_csv="tri:parity",
+            importance=8,
+            confidence=0.9,
+            emotional_impact=4.0,
+        )
+
+        now_ts = datetime.now().isoformat(timespec="seconds")
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.execute(
+                """
+                UPDATE memories
+                SET access_count = 5, recall_count = 3, last_accessed_at = ?, valid_until = NULL
+                WHERE content = ?
+                """,
+                (now_ts, content),
+            )
+            row = conn.execute(
+                "SELECT * FROM memories WHERE content = ? ORDER BY id DESC LIMIT 1",
+                (content,),
+            ).fetchone()
+            self.assertIsNotNone(row)
+            memory_id = int(row["id"])
+            row_dict = dict(row)
+        finally:
+            conn.commit()
+            conn.close()
+
+        original_compute = self.server._compute_rank_multiplier
+        from_memory_search: list[float] = []
+
+        def _capture_memory_search(rank_row, now, include_future=True):
+            value = original_compute(rank_row, now, include_future=include_future)
+            if int(rank_row["id"]) == memory_id:
+                from_memory_search.append(value)
+            return value
+
+        with mock.patch.object(
+            self.server, "_compute_rank_multiplier", side_effect=_capture_memory_search
+        ):
+            raw = self.server.memory_search(
+                query=content,
+                top_k=1,
+                include_future=False,
+                enable_spreading=False,
+            )
+        rows = json.loads(raw)
+        self.assertGreaterEqual(len(rows), 1)
+        self.assertEqual(rows[0]["id"], memory_id)
+        self.assertEqual(len(from_memory_search), 1)
+
+        prompt_vec = self.server.np.array([1.0, 0.0], dtype=self.server.np.float32)
+        embedding = self.server.np.array([0.99, 0.14106736], dtype=self.server.np.float32).tobytes()
+        from_recall_search: list[float] = []
+
+        class _FakeCursor:
+            def __init__(self, rows):
+                self._rows = rows
+
+            def fetchall(self):
+                return self._rows
+
+            def fetchone(self):
+                return self._rows[0] if self._rows else None
+
+        class _FakeConn:
+            def execute(self, sql, params=()):
+                if "FROM memories_vec mv" in sql:
+                    return _FakeCursor([{"memory_id": memory_id}])
+                if "SELECT embedding FROM memories_vec" in sql:
+                    return _FakeCursor([{"embedding": embedding}])
+                if "SELECT content, importance, confidence, access_count, recall_count" in sql:
+                    return _FakeCursor([row_dict])
+                if "SELECT content FROM memories" in sql:
+                    return _FakeCursor([{"content": content}])
+                raise AssertionError(f"unexpected query: {sql}")
+
+            def close(self):
+                return None
+
+        def _capture_recall_search(rank_row, now, include_future=True):
+            value = original_compute(rank_row, now, include_future=include_future)
+            from_recall_search.append(value)
+            return value
+
+        with mock.patch.object(self.server, "get_db", return_value=_FakeConn()), \
+             mock.patch.object(self.server, "_embed_model") as mock_model, \
+             mock.patch.object(self.server, "_RECALL_TOP_K", 1), \
+             mock.patch.object(self.server, "_RECALL_TOKEN_BUDGET", 10_000), \
+             mock.patch.object(self.server, "_RECALL_SIM_THRESHOLD", 0.1), \
+             mock.patch.object(self.server, "_compute_rank_multiplier", side_effect=_capture_recall_search):
+            mock_model.encode.return_value = prompt_vec
+            recall_rows = self.server._recall_search(content)
+
+        self.assertGreaterEqual(len(recall_rows), 1)
+        self.assertEqual(recall_rows[0][0], memory_id)
+        self.assertEqual(len(from_recall_search), 1)
+        self.assertEqual(from_memory_search[0], from_recall_search[0])
+
     def test_memory_load_returns_min_fields_and_normalizes_newlines_in_response_only(self):
         multiline = "load line1\nload line2"
         self.server.memory_save(
