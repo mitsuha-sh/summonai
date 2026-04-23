@@ -10,17 +10,13 @@ Usage:
     claude mcp add summonai-memory-mcp -- python /path/to/server.py
 """
 
-import atexit
 import os
 import hashlib
 import json
 import math
 import re
-import socket
 import sqlite3
 import sys
-import tempfile
-import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -34,7 +30,6 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from hook_context import resolve_agent_id, resolve_scope  # noqa: E402
-from recall_socket import socket_filename  # noqa: E402
 
 # Database path: env var or default
 DEFAULT_DB_PATH = os.environ.get(
@@ -1658,165 +1653,6 @@ def conversation_load_recent(
 
 
 # ============================================================
-# Passive Recall Socket Server
-# ============================================================
-
-_RECALL_SOCKET_PATH = Path(tempfile.gettempdir()) / socket_filename(_get_db_path(), os.getpid())
-_RECALL_SIM_THRESHOLD = 0.82
-_RECALL_TOP_K = 3
-_RECALL_TOKEN_BUDGET = 500
-_RECALL_SEARCH_K = 20
-_RECALL_CONN_TIMEOUT = 2.0
-_RECALL_MIN_PROMPT_CHARS = 10
-
-
-def _recall_search(prompt_text: str) -> list[tuple[int, str, float]]:
-    """Search memories_vec for relevant memories using cosine similarity."""
-    if len(prompt_text) <= _RECALL_MIN_PROMPT_CHARS:
-        return []
-
-    conn = get_db()
-    try:
-        emb = _embed_model.encode(prompt_text)
-        emb_norm = emb / np.linalg.norm(emb)
-        now = datetime.now(timezone.utc)
-
-        # KNN by L2 distance to get candidate IDs (vec0 default metric)
-        rows = conn.execute(
-            """
-            SELECT mv.memory_id
-            FROM memories_vec mv
-            JOIN memories m ON m.id = mv.memory_id
-            WHERE mv.embedding MATCH ? AND k = ?
-              AND m.memory_bucket IN ('knowledge', 'content')
-              AND m.valid_until IS NULL
-            """,
-            (emb.tobytes(), _RECALL_SEARCH_K),
-        ).fetchall()
-
-        # Compute cosine similarity manually (stored vecs are not normalized)
-        candidates: list[tuple[int, float, float]] = []
-        for r in rows:
-            mid = int(r["memory_id"])
-            vec_row = conn.execute(
-                "SELECT embedding FROM memories_vec WHERE memory_id = ?", (mid,)
-            ).fetchone()
-            if not vec_row:
-                continue
-            stored = np.frombuffer(bytes(vec_row["embedding"]), dtype=np.float32)
-            stored_n = np.linalg.norm(stored)
-            if stored_n == 0:
-                continue
-            sim = float(np.dot(emb_norm, stored / stored_n))
-            if sim > _RECALL_SIM_THRESHOLD:
-                memory_row = conn.execute(
-                    """
-                    SELECT content, importance, confidence, access_count, recall_count,
-                           emotional_impact, last_accessed_at, created_at
-                    FROM memories
-                    WHERE id = ?
-                    """,
-                    (mid,),
-                ).fetchone()
-                if not memory_row:
-                    continue
-                rank_multiplier = _compute_rank_multiplier(memory_row, now)
-                candidates.append((mid, sim, sim * rank_multiplier))
-
-        candidates.sort(key=lambda x: x[2], reverse=True)
-        candidates = candidates[:_RECALL_TOP_K]
-
-        results: list[tuple[int, str, float]] = []
-        total_tokens = 0
-        for memory_id, similarity, _ in candidates:
-            row = conn.execute(
-                "SELECT content FROM memories WHERE id = ?", (memory_id,)
-            ).fetchone()
-            if not row:
-                continue
-            content = row["content"]
-            tokens = len(content) // 4
-            if total_tokens + tokens > _RECALL_TOKEN_BUDGET:
-                continue
-            results.append((memory_id, content, similarity))
-            total_tokens += tokens
-        return results
-    finally:
-        conn.close()
-
-
-def _handle_recall_connection(conn_sock: socket.socket) -> None:
-    """Handle one recall request over a Unix socket connection."""
-    try:
-        conn_sock.settimeout(_RECALL_CONN_TIMEOUT)
-        buf = b""
-        while b"\n" not in buf:
-            chunk = conn_sock.recv(4096)
-            if not chunk:
-                return
-            buf += chunk
-        line = buf.split(b"\n", 1)[0]
-        req = json.loads(line.decode("utf-8"))
-        prompt_text = (req.get("prompt") or "").strip()
-        if not prompt_text:
-            conn_sock.sendall(b'{"results":[]}\n')
-            return
-        results = _recall_search(prompt_text)
-        payload = {"results": [[mid, content, sim] for mid, content, sim in results]}
-        conn_sock.sendall((json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8"))
-    except Exception:
-        try:
-            conn_sock.sendall(b'{"results":[]}\n')
-        except Exception:
-            pass
-    finally:
-        try:
-            conn_sock.close()
-        except Exception:
-            pass
-
-
-def _recall_socket_server_loop() -> None:
-    """Background daemon thread: accept recall requests on Unix socket."""
-    sock_path = str(_RECALL_SOCKET_PATH)
-    try:
-        _RECALL_SOCKET_PATH.unlink()
-    except FileNotFoundError:
-        pass
-    except Exception:
-        pass
-    try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
-            server.bind(sock_path)
-            server.listen(8)
-            while True:
-                try:
-                    conn_sock, _ = server.accept()
-                    t = threading.Thread(
-                        target=_handle_recall_connection, args=(conn_sock,), daemon=True
-                    )
-                    t.start()
-                except Exception:
-                    continue
-    except Exception:
-        pass
-
-
-def _cleanup_recall_socket() -> None:
-    try:
-        _RECALL_SOCKET_PATH.unlink()
-    except Exception:
-        pass
-
-
-def start_recall_socket_server() -> None:
-    """Start the background Unix socket recall server. Idempotent."""
-    t = threading.Thread(target=_recall_socket_server_loop, daemon=True)
-    t.start()
-    atexit.register(_cleanup_recall_socket)
-
-
-# ============================================================
 # Startup
 # ============================================================
 
@@ -1824,5 +1660,4 @@ def start_recall_socket_server() -> None:
 ensure_schema()
 
 if __name__ == "__main__":
-    start_recall_socket_server()
     mcp.run(transport="stdio")

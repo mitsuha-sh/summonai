@@ -76,14 +76,15 @@ def _find_project_config(payload: dict | None = None) -> Path | None:
         if resolved in seen:
             continue
         seen.add(resolved)
-        config_path = resolved / ".summonai" / "memory.toml"
-        if config_path.is_file():
-            return config_path
+        for config_rel in ("memory-mcp/memory.toml", ".summonai/memory.toml"):
+            config_path = resolved / config_rel
+            if config_path.is_file():
+                return config_path
     return None
 
 
 def load_runtime_config(payload: dict | None = None) -> dict[str, str]:
-    """Load project-local memory hook config from .summonai/memory.toml.
+    """Load project-local memory hook config from memory-mcp/memory.toml (or .summonai/memory.toml).
 
     Supported keys: agent_id, project, scope_type, scope_id, persona_dir.
     Environment variables intentionally override these values at call sites.
